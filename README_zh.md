@@ -25,13 +25,12 @@
 
 ---
 
-## 为什么需要它
+## 亮点
 
-Claude Code 的 skill 机制很好用，但放在 `~/.claude/skills/` 下的自定义 skill 得手动 `git pull` 才能更新。这个 plugin 把 8 个常用 skill 打成一个 marketplace plugin：
-
-- 一条命令安装
-- Plugin marketplace 自动更新（每 24h 检查一次）
-- 独立命名空间（`/lifedever:<skill>`），不会和其他 plugin 撞名
+- **8 个精选 skill**，作者日常都在用——Swift 应用脚手架、图标生成、运行时调试、内存 / 磁盘 / 进程诊断、多语言并行同步
+- **专注 macOS 开发场景**，覆盖日常高频工作流
+- **一条命令装齐全部 8 个**，通过 Claude Code plugin marketplace 自动更新
+- **统一命名空间** `/lifedever:<skill>`，不会和其他 plugin 撞名
 
 ## 包含的技能
 

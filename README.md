@@ -25,13 +25,12 @@
 
 ---
 
-## Why
+## Highlights
 
-Claude Code skills work great, but custom ones living under `~/.claude/skills/` need manual `git pull` to stay current. This plugin bundles eight reusable skills into a single marketplace plugin so they:
-
-- Install with one command
-- Auto-update via the plugin marketplace (~24h check interval)
-- Live under a unique namespace (`/lifedever:<skill>`) — no collisions
+- **Eight curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, memory / disk / process diagnostics, and parallel localization
+- **macOS-dev focused** — most skills target the everyday macOS workflow
+- **One command to install all eight** and they auto-update via the Claude Code plugin marketplace
+- **Namespaced** under `/lifedever:<skill>` so they never collide with other plugins
 
 ## Skills included
 
