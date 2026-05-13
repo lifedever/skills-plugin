@@ -12,6 +12,19 @@ description: >
 
 Generate a production-ready app icon from concept to all required platform formats.
 
+## Prerequisites
+
+Before starting, **verify required tools** are installed. Run this first and only proceed if all checks pass:
+
+```bash
+which rsvg-convert || echo "⚠ Install required: brew install librsvg"
+python3 -c "import PIL" 2>/dev/null || echo "ℹ Optional: pip3 install Pillow (needed for .ico Windows icons)"
+```
+
+- **`rsvg-convert`** — required for SVG → PNG rasterization. If missing, ask the user to install `brew install librsvg` and stop.
+- **`Pillow`** — optional, only needed if the user wants Windows `.ico`. Without it the script gracefully skips `.ico` and still produces `.icns` + all PNG sizes.
+- **`sips`** — pre-installed on macOS, no action needed.
+
 ## Workflow
 
 ### 1. Design the SVG (1024x1024)

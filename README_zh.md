@@ -46,6 +46,21 @@
 | 🍎 | `macos-app-scaffold` | 生成生产级原生 macOS 应用脚手架（SwiftUI + SwiftData + SPM），包含自动更新、开发/发布构建脚本、本地化、菜单栏常驻等。 |
 | 🖼️ | `image-upload` | 把图片上传到你自己的 GitHub repo，返回 jsDelivr CDN / GitHub raw / Markdown 三种链接。支持文件路径、批量、剪贴板。首次需在 `~/.zshrc` 设 `IMAGE_HOST_REPO` 环境变量，详见 [SKILL.md](./skills/image-upload/SKILL.md)。 |
 
+## 各 Skill 前置条件
+
+大部分 skill 装上即用。少数需要一次性配置或装个额外工具——只装你会用到的那几个：
+
+| Skill | 需要 | 怎么配 |
+|---|---|---|
+| `image-upload` | **`IMAGE_HOST_REPO` 环境变量** + `gh` CLI 已登录 | `echo 'export IMAGE_HOST_REPO="<你的 gh 用户名>/images"' >> ~/.zshrc && source ~/.zshrc && gh auth login` |
+| `mac-cleanup-disk` | [`tw93/mole`](https://github.com/tw93/mole) CLI | `brew install mole` |
+| `app-icon-generator` | `librsvg`（必装）+ `Pillow`（可选，出 `.ico` 才需要） | `brew install librsvg && pip3 install Pillow` |
+| `macos-app-scaffold` | Xcode ≥ 16（Swift 6.0 工具链） | App Store / Xcode 官网装 |
+| `debug-mode` | `node`（只在用可选 HTTP 日志收集器时需要） | 写 JS/TS 的话一般都有 |
+| `dev-launcher` / `localize` / `mac-cleanup-memory` / `mac-cleanup-process` | 无 | — |
+
+每个 skill 运行时也会自检前置条件并给出友好提示，所以也可以直接试一下、按报错信息装就行。
+
 ## 安装
 
 在 Claude Code 里执行：

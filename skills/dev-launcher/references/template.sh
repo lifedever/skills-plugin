@@ -87,7 +87,7 @@ stop_by_name() {
     fi
     if [ "$found" -eq 1 ]; then
         sleep 2
-        # 还没死的强杀
+        # Force-kill any survivors
         for pid in $pids; do
             if kill -0 "$pid" 2>/dev/null; then
                 kill -9 "$pid" 2>/dev/null

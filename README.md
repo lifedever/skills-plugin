@@ -46,6 +46,21 @@
 | 🍎 | `macos-app-scaffold` | Generate a production-ready native macOS app scaffold (SwiftUI + SwiftData + SPM) with auto-update, dev/release build scripts, localization, and menu-bar persistence. |
 | 🖼️ | `image-upload` | Upload images to your own GitHub repo, get jsDelivr CDN / GitHub raw / Markdown URLs back. Supports file paths, batch, and clipboard. Requires one-time env var setup — see [SKILL.md](./skills/image-upload/SKILL.md). |
 
+## Prerequisites per Skill
+
+Most skills run as-is. A few need a one-time setup or an extra tool — install only the ones you'll actually use:
+
+| Skill | Requirement | How |
+|---|---|---|
+| `image-upload` | **`IMAGE_HOST_REPO` env var** + `gh` CLI authenticated | `echo 'export IMAGE_HOST_REPO="<your-gh-user>/images"' >> ~/.zshrc && source ~/.zshrc && gh auth login` |
+| `mac-cleanup-disk` | [`tw93/mole`](https://github.com/tw93/mole) CLI | `brew install mole` |
+| `app-icon-generator` | `librsvg` (required) + `Pillow` (optional, for `.ico`) | `brew install librsvg && pip3 install Pillow` |
+| `macos-app-scaffold` | Xcode ≥ 16 (Swift 6.0 toolchain) | Install via App Store / Xcode releases |
+| `debug-mode` | `node` (only for the optional HTTP log collector) | Already installed if you write JS/TS |
+| `dev-launcher`, `localize`, `mac-cleanup-memory`, `mac-cleanup-process` | None | — |
+
+Each skill also detects its own missing prerequisites at runtime and prints a setup hint, so you can also just try one and follow the error message.
+
 ## Installation
 
 In Claude Code, run:

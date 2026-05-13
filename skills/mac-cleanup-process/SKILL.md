@@ -1,70 +1,70 @@
 ---
 name: mac-cleanup-process
-description: 扫描 macOS 僵尸/卡死进程（MCP server 孤儿、Docker cagent 残留、长期 dev server、老 claude 会话、长寿命终端 tab、大内存超龄），生成分级诊断报告 + 建议 kill 命令。触发词：清理僵尸进程、系统清理、MCP 孤儿、kernel_task 高、内存高、系统卡、扫僵尸、cleanup zombies、scan zombies、system cleanup、check mcp orphans、清进程、清卡死进程。skill 本身不 kill，只诊断 + 建议。姊妹 skill：mac-cleanup-disk（清磁盘缓存，不动进程）。
+description: Scan macOS for zombie/stuck processes (orphan MCP servers, leftover Docker cagent, long-running dev servers, old claude sessions, long-lived terminal tabs, large memory over-age) and produce a tiered diagnostic report + suggested kill commands. Trigger words "cleanup zombies", "scan zombies", "system cleanup", "check mcp orphans", "kill stuck processes", "清理僵尸进程", "系统清理", "MCP 孤儿", "kernel_task 高", "内存高", "系统卡", "扫僵尸", "清进程", "清卡死进程". The skill itself never kills — diagnosis + suggestion only. Sister skill mac-cleanup-disk (disk cache cleanup, never touches processes).
 ---
 
 # mac-cleanup-process
 
-诊断 macOS 僵尸进程的 skill，纯诊断模式。**绝不主动 kill 任何进程**。
+A skill for diagnosing macOS zombie processes — pure diagnostic mode. **Never proactively kills any process.**
 
-## 触发后的执行流程
+## Execution Flow After Trigger
 
-### 步骤 1：执行扫描脚本
+### Step 1: Run the scan script
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scan.sh"
 ```
 
-脚本会：
-- stdout 输出完整 Markdown 报告
-- tee 到 `~/Downloads/mac-cleanup-process-<timestamp>.md`
-- 成功 exit 0；失败 exit 1 并把诊断写到 stderr
+The script:
+- Prints a full Markdown report to stdout
+- Tees it to `~/Downloads/mac-cleanup-process-<timestamp>.md`
+- Exits 0 on success, 1 on failure with diagnostics to stderr
 
-### 步骤 2：呈现报告
+### Step 2: Present the report
 
-**直接把 stdout 的 Markdown 内容原样贴给用户。** 允许补充一两句上下文观察（比如点明"最可疑"），但：
+**Paste the stdout Markdown content to the user verbatim.** A line or two of contextual observation is OK (e.g. pointing out the "most suspicious"), but:
 
-- **严禁** 修改/伪造/遗漏报告里的事实数据（PID、etime、命令）
-- **严禁** Claude 自己用 `ps | grep` 补充脚本没扫到的候选
-- 如果脚本输出"🎉 未发现僵尸"，直接汇报干净，结束
+- **Never** modify / fabricate / omit factual data in the report (PID, etime, command)
+- **Never** add candidates from your own `ps | grep` that the script didn't surface
+- If the script outputs "🎉 no zombies found", just report all-clear and stop
 
-### 步骤 3：等待用户指令
+### Step 3: Wait for user instruction
 
-按下表处理：
+Handle per this table:
 
-| 用户回复 | Claude 处理 | 是否二次确认 |
-|---------|-----------|-------------|
-| 不回复 / "好" / "知道了" | 什么都不做 | - |
-| `执行明确孤儿清理` / `一键清理` | 执行建议命令块里"明确孤儿"部分所有 kill 命令 | **不需要**（报告已明示"可闭眼"） |
-| `kill <PID1> <PID2>`（空格或逗号分隔） | 逐个 `kill`，PID 不存在就跳过继续 | **不需要** |
-| `全部清理` / `清理所有可疑` 等模糊指令 | 反问"你是指也包括这些可疑项 [列出] 吗？" | **需要** |
-| `dry run` / `只看不动` | 重申"skill 本来就是纯诊断" | - |
+| User reply | Claude action | Second confirmation? |
+|------------|---------------|----------------------|
+| No reply / "ok" / "got it" | Do nothing | - |
+| "run explicit-orphan cleanup" / "one-click cleanup" | Run all kill commands from the "Explicit Orphans" section of the suggested-commands block | **No** (the report already labels these as "safe to nuke") |
+| `kill <PID1> <PID2>` (space or comma separated) | Kill each one; skip and continue if a PID is missing | **No** |
+| "clean everything" / "clean all suspicious" or other vague instructions | Ask back: "Do you mean including these suspicious items [list]?" | **Yes** |
+| "dry run" / "look only" | Reiterate "the skill is diagnostic-only by design" | - |
 
-### 步骤 4：执行 kill 后验证
+### Step 4: Post-kill verification
 
-如果实际 kill 了：
-1. `sleep 2` 等内核回收
-2. `ps -p <PID>` 确认目标已退出
-3. 简短汇报（前后内存对比，引用 `vm_stat` 的 compressor 数值）
-4. **不** 自动再跑 scan（用户想再扫会主动说）
+After an actual kill:
+1. `sleep 2` to let the kernel reap
+2. `ps -p <PID>` to confirm the target has exited
+3. Brief report (before/after memory comparison, cite `vm_stat`'s compressor number)
+4. **Don't** auto-rescan (the user will say so if they want another scan)
 
-### 步骤 5：错误处理
+### Step 5: Error handling
 
-| 情况 | 处理 |
-|-----|------|
-| `scan.sh` exit 1 | 把 stderr 原文贴给用户，不自己用 ps 补救 |
-| kill 的 PID 已不存在 | 汇报"PID X 已退出（可能被刚杀的父进程带走）"，继续 |
-| kill 权限不足 | 建议 `sudo`，但**不**代跑 sudo |
-| Downloads 写入失败 | 报告输出到对话照常，警告"本次未落盘：<原因>" |
+| Situation | Action |
+|-----------|--------|
+| `scan.sh` exits 1 | Paste stderr verbatim, don't patch with your own ps |
+| Killed PID no longer exists | Report "PID X has exited (possibly reaped along with the parent you just killed)", continue |
+| Kill denied (permissions) | Suggest `sudo`, but **don't** sudo on the user's behalf |
+| Downloads write fails | Report to the conversation as usual, warn "Not persisted this run: <reason>" |
 
-## 核心守卫（加粗！）
+## Core Guards (bolded!)
 
-1. **Claude 不得自作主张 kill**。只有用户明示（命名 PID、说"一键清理"、说"执行明确孤儿清理"）才能动手。
-2. **Claude 不得修改 scan.sh 输出的事实数据**。报告里的 PID/etime/命令/数字全部严格来自脚本。
-3. **Claude 不得 kill `[当前会话·勿杀]` 标注的 PID**，即使用户明示。反问"你确认要杀当前对话进程吗？如果真要，请手动在终端执行"。
+1. **Claude must not kill on its own initiative**. Only act when the user has explicitly stated PIDs, said "one-click cleanup", or said "run explicit-orphan cleanup".
+2. **Claude must not modify the factual data emitted by scan.sh**. All PIDs / etime / commands / numbers in the report come strictly from the script.
+3. **Claude must not kill any PID tagged `[current session — DO NOT KILL]`**, even on explicit user request. Ask back: "Are you sure you want to kill the current conversation process? If you really mean it, please run it manually in your terminal."
 
-## 关联文件
+## Related Files
 
-- `scan.sh` — 扫描核心
-- `DESIGN.md` — 设计文档
-- `README.md` — 用户文档（阈值调整说明）
+- `scan.sh` — scan engine
+- `DESIGN.md` — design doc
+- `README.md` — user docs (threshold tuning)

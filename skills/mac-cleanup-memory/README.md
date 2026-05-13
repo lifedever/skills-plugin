@@ -1,96 +1,96 @@
 # mac-cleanup-memory
 
-macOS 内存状态扫描 skill。**只诊断，不 kill**。
+macOS memory status scan skill. **Diagnosis only, never kills.**
 
-姊妹 skill：[mac-cleanup-process](../mac-cleanup-process/SKILL.md)（异常/卡死进程）、[mac-cleanup-disk](../mac-cleanup-disk/SKILL.md)（磁盘清理）。三件套覆盖 macOS 维护的"内存 / 进程 / 磁盘"三个维度。
+Sister skills: [mac-cleanup-process](../mac-cleanup-process/SKILL.md) (abnormal / stuck processes), [mac-cleanup-disk](../mac-cleanup-disk/SKILL.md) (disk cleanup). The three together cover the memory / process / disk dimensions of macOS maintenance.
 
-## 使用
+## Usage
 
-**在 Claude Code 里：** 说"看一下内存"、"内存压力多大"、"谁在吃内存"等中英文触发词，skill 会自动触发。
+**In Claude Code:** say "check memory", "how's memory pressure", "who is eating memory", or any Chinese/English trigger phrase and the skill auto-triggers.
 
-**直接跑脚本（绕过 Claude Code）：** 先用 `find` 定位 plugin 缓存中的脚本路径（版本号会变）：
+**Run the script directly (bypassing Claude Code):** locate the script in the plugin cache (version numbers shift) with `find`:
 
 ```bash
 bash "$(find ~/.claude/plugins/cache -name scan.sh -path '*mac-cleanup-memory*' 2>/dev/null | sort | tail -1)"
 ```
 
-完整报告会同时：
-- 输出到 stdout
-- 保存到 `~/Downloads/mac-cleanup-memory-<timestamp>.md`
+The full report is both:
+- Printed to stdout
+- Saved to `~/Downloads/mac-cleanup-memory-<timestamp>.md`
 
-## 报告内容
+## Report Contents
 
-1. **系统快照** —— Free / Active / Inactive / Wired / Compressor / Purgeable / Swap
-2. **压力等级对照表** —— Normal / Warning / Critical 阈值 + 当前所在区间
-3. **Top RAM 大户（按进程）** —— 前 15 个 RSS 最大进程
-4. **按 App 聚合** —— 把同一个 .app 下的所有进程合并（如 WeChat 主进程 + wxocr + 各种 helper 合并显示），方便看真实占用
-5. **客观观察** —— 列举可疑模式（多个同名进程、大量 inactive、swap 高、压缩器满载等），**不评价不建议杀谁**
+1. **System snapshot** — Free / Active / Inactive / Wired / Compressor / Purgeable / Swap
+2. **Pressure level reference table** — Normal / Warning / Critical thresholds + current bucket
+3. **Top RAM consumers (by process)** — top 15 processes by RSS
+4. **Aggregated by App** — merges all processes under the same .app (e.g. WeChat main process + wxocr + helpers shown together) for true usage
+5. **Objective observations** — flags suspicious patterns (duplicate-name processes, large inactive, high swap, compressor saturated, etc.). **No judgments, no kill recommendations.**
 
-## 调整阈值
+## Tuning Thresholds
 
-打开 `scan.sh`，修改顶部常量：
+Open `scan.sh` and edit the top-of-file constants:
 
 ```bash
-TOP_N=15                  # Top RAM 大户列前 N 个
-APP_AGG_MIN_RSS_MB=100    # 按 app 聚合时低于此值不显示
-DUP_PROCESS_MIN_COUNT=2   # 同名进程数 ≥ 此值时报告"重复进程"观察
+TOP_N=15                  # show top N processes
+APP_AGG_MIN_RSS_MB=100    # hide app aggregates below this MB
+DUP_PROCESS_MIN_COUNT=2   # report "duplicate processes" observation when same-name count >= this
 ```
 
-改完直接生效，不需要重启任何东西。
+Takes effect immediately, no restart needed.
 
-## Kill 安全协议
+## Kill Safety Protocol
 
-skill 本身不 kill 进程。当用户明示 `kill <PID>` 时，Claude 会按 [SKILL.md](./SKILL.md#kill-安全协议核心加粗) 中的协议执行：
+The skill itself does not kill processes. When the user explicitly says `kill <PID>`, Claude follows the protocol in [SKILL.md](./SKILL.md#-kill-safety-protocol-core-bolded):
 
-1. 黑名单硬拒（PID 1、kernel_task、WindowServer、当前 claude 会话）
-2. PID 重用校验（杀前再次确认命令未变）
-3. 系统 UI 二次确认（Finder/Dock 之类）
-4. SIGTERM 优先，3 秒后才 SIGKILL
-5. 批量 kill 必须逐条 echo + `confirm` 才动手
-6. 永不用 `pkill -f` / `killall`（防模式误伤）
-7. 操作落 audit log 到 `~/Downloads/mac-cleanup-memory-killed-*.log`
+1. Blacklist hard reject (PID 1, kernel_task, WindowServer, current claude session)
+2. PID reuse validation (re-verify command unchanged before kill)
+3. System UI second confirmation (Finder / Dock and similar)
+4. SIGTERM first, SIGKILL only after 3 seconds
+5. Batch kill must echo each entry + `confirm` before acting
+6. Never use `pkill -f` / `killall` (avoid pattern friendly fire)
+7. Append every action to audit log at `~/Downloads/mac-cleanup-memory-killed-*.log`
 
-## 落盘文件清理
+## Cleaning Up Persisted Files
 
 ```bash
-# 报告（每次扫描一份）
+# Reports (one per scan)
 find ~/Downloads -name 'mac-cleanup-memory-*.md' -mtime +7 -delete
 
-# audit log（每次 kill 操作累加）
+# Audit logs (appended every kill action)
 find ~/Downloads -name 'mac-cleanup-memory-killed-*.log' -mtime +30 -delete
 ```
 
-## 依赖
+## Dependencies
 
-纯 macOS 自带工具：`vm_stat`、`sysctl`、`memory_pressure`、`ps`、`awk`、`sed`。
-**零外部依赖**，不需要 `jq` / `brew install` 任何东西。
+Pure macOS built-ins: `vm_stat`, `sysctl`, `memory_pressure`, `ps`, `awk`, `sed`.
+**Zero external dependencies** — no `jq`, no `brew install` of anything.
 
-自适应 page size：Apple Silicon (16K) 和 Intel Mac (4K) 都正确换算。
+Adaptive page size: works on Apple Silicon (16K) and Intel Mac (4K).
 
-## 压力等级阈值
+## Pressure Level Thresholds
 
-参考 macOS `memory_pressure` 的 free percentage：
+Based on free percentage as reported by macOS `memory_pressure`:
 
-| Free % | 等级 | 含义 |
-|--------|------|------|
-| > 70% | Normal (健康) | 完全正常 |
-| 40-70% | Normal (有压力) | 系统在边缘工作但稳定 |
-| 10-40% | Warning | 该收拾东西了 |
-| < 10% | Critical | 系统会主动 kill 大户 |
+| Free % | Level | Meaning |
+|--------|-------|---------|
+| > 70% | Normal (healthy) | Fully normal |
+| 40-70% | Normal (under pressure) | System running on the edge but stable |
+| 10-40% | Warning | Time to tidy up |
+| < 10% | Critical | System will start actively killing big consumers |
 
-注意：这是简化模型。macOS 真实压力等级还涉及压缩率、swap 活动等，但 free percentage 作为粗略指示器够用。
+Note: this is a simplified model. The real macOS pressure level also involves compression ratio, swap activity, etc., but free percentage is good enough as a rough indicator.
 
-## 与 mac-cleanup-process 的边界
+## Boundary with mac-cleanup-process
 
-| skill | 关注点 | 输出 |
-|-------|--------|------|
-| `mac-cleanup-memory` | **整体内存** + Top 占用大户 | 系统快照 + 大户排行 + 客观观察 |
-| `mac-cleanup-process` | **异常**进程（孤儿/超龄/卡死） | 列 PID + 建议 kill 命令块 |
+| skill | Focus | Output |
+|-------|-------|--------|
+| `mac-cleanup-memory` | **Overall memory** + top consumers | System snapshot + top list + objective observations |
+| `mac-cleanup-process` | **Abnormal** processes (orphans / over-aged / stuck) | Lists PIDs + suggested kill commands |
 
-差别：memory 关心"现在内存什么状况、谁在吃"——即使所有进程都正常，内存也可能紧张；process 只关心"不该活着的东西"。
+Difference: memory cares about "what's the memory state right now, who's eating it" — even if every process is normal, memory can still be tight; process only cares about "things that shouldn't be alive".
 
-## Bash / awk 坑记录
+## Bash / awk Gotchas
 
-- **awk 正则字符类内的 `/`**：`match(cmd, /\/[^/]+\.app\//)` 在某些 awk 版本下报 "extra ]"。改用 `index()` + `substr()` 函数式实现，规避正则解析差异
-- **macOS page size 自适应**：Apple Silicon 是 16K，Intel 是 4K。**别硬编码**，用 `sysctl -n hw.pagesize`
-- **vm.swapusage 输出格式**：`total = 4096.00M used = 2509.81M free = 1586.19M (encrypted)` —— 单位可能是 M 或 G，解析时要分辨
+- **`/` inside an awk regex character class**: `match(cmd, /\/[^/]+\.app\//)` reports "extra ]" on some awk versions. Use a functional `index()` + `substr()` implementation to dodge regex-parser differences.
+- **macOS page size is adaptive**: Apple Silicon is 16K, Intel is 4K. **Do not hardcode** — use `sysctl -n hw.pagesize`.
+- **vm.swapusage output format**: `total = 4096.00M used = 2509.81M free = 1586.19M (encrypted)` — units can be M or G, parser must distinguish.

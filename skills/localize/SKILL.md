@@ -7,51 +7,51 @@ description: >
   or asks to apply a change across multiple language files.
 ---
 
-# Localize — 多语言批量更新
+# Localize — Batch Multi-Language Update
 
-将一个内容变更同步到项目中所有语言文件，使用并行 Agent 加速。
+Propagate a single content change across every language file in the project, using parallel agents to speed things up.
 
 ## Workflow
 
-### 1. 识别语言文件
+### 1. Identify Language Files
 
-扫描项目，找到所有语言/本地化文件（常见模式）：
+Scan the project for localization files. Common patterns:
 - `locales/*.json` / `locales/*.yml`
 - `i18n/*.ts` / `i18n/*.js`
 - `lang/*.php`
-- `*.lproj/*.strings`（macOS/iOS）
-- 或用户指定的路径
+- `*.lproj/*.strings` (macOS / iOS)
+- Or a path the user specifies
 
-列出找到的所有语言文件，请用户确认。
+List every language file found and ask the user to confirm.
 
-### 2. 理解变更内容
+### 2. Understand the Change
 
-读取基准语言文件（通常是中文或英文），理解本次要变更的内容：
-- 新增的 key 和文案
-- 修改的文案
-- 删除的 key
+Read the baseline language file (usually Chinese or English) to understand the change:
+- Added keys and copy
+- Modified copy
+- Removed keys
 
-向用户展示变更摘要，确认后继续。
+Show the user a change summary and continue after confirmation.
 
-### 3. 并行更新所有语言
+### 3. Update All Languages in Parallel
 
-为每个语言文件启动一个 Agent，并行执行：
-- 保留该语言文件的现有结构和未变更的翻译
-- 对变更内容进行翻译（新增/修改的文案）
-- 删除已移除的 key
-- 新增内容如果无法准确翻译，使用基准语言文案作为 fallback 并加注释标记
+Spawn one agent per language file, running concurrently. Each agent must:
+- Preserve the existing structure and unchanged translations of that language file
+- Translate the changed content (new / modified copy)
+- Remove the deleted keys
+- For new content that can't be translated accurately, fall back to the baseline copy with a comment marker
 
-**重要**：每个 Agent 必须验证文件原有结构完整保留，不能丢失任何未变更的内容。
+**Important**: each agent must verify that the file's original structure is fully preserved — no unchanged content can be lost.
 
-### 4. 汇总与确认
+### 4. Recap and Confirm
 
-所有 Agent 完成后：
-1. 展示变更汇总表（每种语言的改动数量）
-2. 如果项目有 lint/build 命令，运行检查
-3. 等用户确认后再提交
+After every agent finishes:
+1. Show a change summary table (number of edits per language)
+2. If the project has lint / build commands, run them
+3. Wait for user confirmation before committing
 
-### 注意事项
+### Notes
 
-- 不要假设语言文件的格式，先读取确认实际格式
-- 保持各语言文件的排序方式与原文件一致
-- 如果某个语言文件格式与其他不同，单独处理而不是套用模板
+- Don't assume the language file format — read it first to confirm
+- Preserve each file's original key ordering
+- If one language file's format differs from the others, handle it individually rather than templating across the board

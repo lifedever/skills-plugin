@@ -1,106 +1,106 @@
-# mac-cleanup-process 设计文档
+# mac-cleanup-process Design Doc
 
-**日期**：2026-04-24
-**状态**：Design Approved，待实施
-**作者**：brainstorming 会话产出（用户 + Claude 协作对齐）
-
----
-
-## 1. 背景与目标
-
-### 问题
-
-macOS 日常使用中，长期运行后 `kernel_task` 经常飙到高 CPU，表现像散热问题，但真实根因往往是**内存压缩器被僵尸进程压垮**。典型罪魁：
-
-- Claude Code 关闭 tab 但 claude 进程未正常退出，遗留一堆 MCP server 孤儿（PPID=1）
-- Docker Desktop UI 退出后 `cagent` 后台进程未清理
-- dev server（vite / pnpm dev / webpack）开完忘了关，挂几天甚至几周
-- 终端 tab（任何 macOS 终端）累积 zsh，时间一长占资源
-
-手动用 `ps | grep` 排查费时，编写 shell 脚本又怕规则写死误杀。
-
-### 目标
-
-交付一个 Claude Code skill `mac-cleanup-process`，在用户觉得系统卡时触发，做到：
-
-1. **自动发现**上述各类候选进程，分"明确孤儿"和"可疑需判断"两级
-2. **只诊断不动手** —— skill 本身绝不主动 kill
-3. **生成可复制的 kill 命令**，用户自行决定执行方式（复制到终端 / 让 Claude 代跑）
-4. **完整上下文呈现** —— 可疑项附带项目路径、运行时长、子进程数
-5. **落盘报告** —— 方便事后回看
-
-### 非目标
-
-- 不做后台定时巡检（误杀风险，用户明确反对）
-- 不做 Claude Code hook 自动触发（MVP 阶段 YAGNI）
-- 不覆盖非当前用户的进程（系统进程永不扫）
+**Date**: 2026-04-24
+**Status**: Design Approved, pending implementation
+**Author**: brainstorming session output (user + Claude collaboration)
 
 ---
 
-## 2. 整体设计
+## 1. Background and Goals
 
-### 2.1 目录结构
+### Problem
+
+In day-to-day macOS use, after running long enough, `kernel_task` often spikes to high CPU. It looks like a thermal issue, but the real root cause is usually **the memory compressor being overwhelmed by zombie processes**. Common culprits:
+
+- Claude Code tabs closed but the claude process didn't exit cleanly, leaving behind a pile of orphan MCP servers (PPID=1)
+- Docker Desktop UI quit but the `cagent` background processes weren't cleaned
+- dev servers (vite / pnpm dev / webpack) left running for days or weeks
+- Terminal tabs (any macOS terminal) accumulating zsh — eventually eats resources
+
+Manually triaging with `ps | grep` is time-consuming, and writing a shell script risks hardcoded rules that friendly-fire kills.
+
+### Goals
+
+Ship a Claude Code skill `mac-cleanup-process` that triggers when the user feels the system is sluggish, and:
+
+1. **Auto-discovers** candidate processes in the above classes, split into "explicit orphans" and "suspicious — needs judgment"
+2. **Diagnoses without acting** — the skill itself never proactively kills
+3. **Generates copy-paste-ready kill commands**, leaving the execution choice to the user (paste to terminal / ask Claude to run)
+4. **Presents full context** — suspicious items include project path, runtime duration, child-process count
+5. **Persists the report** — easy to revisit later
+
+### Non-goals
+
+- No background scheduled scanning (friendly-fire risk, user explicitly opposes)
+- No Claude Code hook auto-trigger (YAGNI for MVP)
+- Does not cover processes of users other than the current one (system processes never scanned)
+
+---
+
+## 2. Overall Design
+
+### 2.1 Directory Structure
 
 ```
 <skill-dir>/
-├── SKILL.md           # skill 入口：description、frontmatter、交互流程指引
-├── scan.sh            # 核心扫描脚本，所有判定规则写在这里
-├── DESIGN.md          # 本文档
-└── README.md          # 用户手动文档（说明如何调阈值）
+├── SKILL.md           # skill entry: description, frontmatter, interaction guide
+├── scan.sh            # core scan script — all detection rules live here
+├── DESIGN.md          # this doc
+└── README.md          # user-facing manual (how to tune thresholds)
 ```
 
-### 2.2 触发方式
+### 2.2 Trigger
 
-- **Slash command**：`/mac-cleanup-process`
-- **自然语言关键词**（通过 SKILL.md frontmatter description 声明）：
-  - 中文：清理僵尸进程、系统清理、MCP 孤儿、kernel_task 高、内存高、系统卡、扫僵尸
-  - 英文：cleanup zombies, scan zombies, system cleanup, check mcp orphans
+- **Slash command**: `/mac-cleanup-process`
+- **Natural-language keywords** (declared via SKILL.md frontmatter description):
+  - Chinese: 清理僵尸进程, 系统清理, MCP 孤儿, kernel_task 高, 内存高, 系统卡, 扫僵尸
+  - English: cleanup zombies, scan zombies, system cleanup, check mcp orphans
 
-### 2.3 数据流
+### 2.3 Data Flow
 
 ```
-用户触发 (关键词/slash)
+User trigger (keyword / slash)
     ↓
-Claude 加载 SKILL.md
+Claude loads SKILL.md
     ↓
-Claude 执行: bash <skill-dir>/scan.sh
+Claude runs: bash <skill-dir>/scan.sh
     ↓
-scan.sh 扫描 → 输出 Markdown 报告到 stdout
-              → tee 到 ~/Downloads/mac-cleanup-process-<timestamp>.md
+scan.sh scans → Markdown report to stdout
+              → tee to ~/Downloads/mac-cleanup-process-<timestamp>.md
     ↓
-Claude 直接呈现 stdout 内容（几乎零加工）
+Claude presents stdout content (near zero post-processing)
     ↓
-用户查看报告，决定：
-    (a) 不做任何事（最常见）
-    (b) 回复 "执行明确孤儿清理" → Claude 执行建议命令块里的明确孤儿部分
-    (c) 回复 "kill <PID1> <PID2>" → Claude 逐个 kill 指定 PID
-    (d) 自己复制命令到终端执行（Claude 完全不介入）
+User reads the report and decides:
+    (a) Do nothing (most common)
+    (b) Reply "run explicit-orphan cleanup" → Claude executes the explicit-orphan section of the suggested commands
+    (c) Reply "kill <PID1> <PID2>" → Claude kills the named PIDs one by one
+    (d) Copy commands to a terminal themselves (Claude does not get involved)
 ```
 
 ---
 
-## 3. 扫描规则（scan.sh 核心）
+## 3. Scan Rules (scan.sh core)
 
-分两大类。所有阈值写在 `scan.sh` 顶部常量区，可改。
+Two main categories. All thresholds are constants at the top of `scan.sh`, easy to tune.
 
-### 3.1 类别 A：明确孤儿（建议闭眼 kill）
+### 3.1 Category A: Explicit Orphans (safe to nuke)
 
-| 子类 | 识别条件 |
-|------|---------|
-| **MCP server 孤儿** | `PPID=1` **且** 命令匹配以下任一：`npm exec.*mcp`、`mcp-server-*`、`@playwright/mcp`、`@upstash/context7-mcp`、`@modelcontextprotocol/*`、`@henkey/postgres-mcp-server`、`figma-developer-mcp`、`xcodebuildmcp`、`mcp-mongo-server`、`alibabacloud-devops-mcp-server`、`drawio/mcp`、`context7-mcp` |
-| **MCP 孤儿子进程** | 上述 MCP 孤儿父进程的后代（`pgrep -P` 递归） |
-| **Docker cagent 残留** | 进程名含 `cagent` **且** `pgrep -x Docker` 为空（Docker UI 未运行） |
+| Subclass | Detection condition |
+|----------|---------------------|
+| **MCP server orphan** | `PPID=1` **and** command matches any of: `npm exec.*mcp`, `mcp-server-*`, `@playwright/mcp`, `@upstash/context7-mcp`, `@modelcontextprotocol/*`, `@henkey/postgres-mcp-server`, `figma-developer-mcp`, `xcodebuildmcp`, `mcp-mongo-server`, `alibabacloud-devops-mcp-server`, `drawio/mcp`, `context7-mcp` |
+| **MCP orphan descendants** | Descendants of the above orphan parents (`pgrep -P` recursive) |
+| **Docker cagent leftover** | Process name contains `cagent` **and** `pgrep -x Docker` is empty (Docker UI not running) |
 
-### 3.2 类别 B：可疑需判断
+### 3.2 Category B: Suspicious — Needs Judgment
 
-| 子类 | 识别条件（默认阈值） |
-|------|--------------------|
-| **老 claude 会话** | 进程名 `claude` **且** `etime > 24h` |
-| **长期 dev server** | 命令匹配 `vite\|webpack\|pnpm dev\|next dev\|nuxt dev\|npm run dev\|yarn dev\|rollup.*watch` **且** `etime > 2 天` |
-| **长寿命终端 tab** | zsh 进程的父进程是 `/usr/bin/login`（终端 tab 内的 shell）**且** `etime > 3 天` |
-| **大内存超龄** | RSS > 500 MB **且** `etime > 3 天` **且** 未被上述规则覆盖（去重） |
+| Subclass | Detection condition (default thresholds) |
+|----------|------------------------------------------|
+| **Old claude session** | Process name `claude` **and** `etime > 24h` |
+| **Long-running dev server** | Command matches `vite\|webpack\|pnpm dev\|next dev\|nuxt dev\|npm run dev\|yarn dev\|rollup.*watch` **and** `etime > 2 days` |
+| **Long-lived terminal tab** | A zsh process whose parent is `/usr/bin/login` (the shell inside a terminal tab) **and** `etime > 3 days` |
+| **Large-memory over-age** | RSS > 500 MB **and** `etime > 3 days` **and** not already covered by a rule above (dedupe) |
 
-### 3.3 可调阈值（scan.sh 顶部常量）
+### 3.3 Tunable Thresholds (top of scan.sh)
 
 ```bash
 OLD_CLAUDE_HOURS=24
@@ -110,229 +110,229 @@ BIG_MEM_RSS_MB=500
 BIG_MEM_DAYS=3
 ```
 
-### 3.4 守卫规则
+### 3.4 Guard Rules
 
-**守卫 1：绝不把当前 claude 会话进程列入建议 kill 命令**
-- 脚本通过 `$$ → $PPID` 向上追溯祖先，找到命令匹配 `claude` 的进程 PID
-- 该 PID 在报告里打 `[当前会话·勿杀]` 标签
-- 建议命令块自动排除它
-- 追溯不到（用户在普通终端手动跑测试）则置 null，不做排除
+**Guard 1: Never include the current claude session PID in suggested kill commands**
+- The script walks ancestors via `$$ → $PPID`, finding the PID whose command matches `claude`
+- That PID is tagged `[current session — DO NOT KILL]` in the report
+- The suggested-command block automatically excludes it
+- If the walk fails (user running tests from a plain terminal), the value is null and no exclusion is applied
 
-**守卫 2：系统级进程绝不扫**
-- 只处理 `UID == 当前用户 UID` 的进程
-- 过滤掉 root、_windowserver、_driverkit 等系统账户
+**Guard 2: Never scan system-level processes**
+- Only handle processes where `UID == current user UID`
+- Filter out root, _windowserver, _driverkit, and similar system accounts
 
-**守卫 3：命令行敏感信息脱敏**
-- 报告和落盘 Markdown 中，命令里的 `scheme://user:password@host` 部分自动把密码替换成 `***`
-- 防止 MongoDB 连接串、postgres 连接串等泄露
+**Guard 3: Redact sensitive info in command lines**
+- In the report and persisted Markdown, `scheme://user:password@host` style URIs have the password replaced with `***`
+- Prevents leaking MongoDB / postgres connection strings
 
 ---
 
-## 4. 输出格式
+## 4. Output Format
 
-### 4.1 stdout（Claude 读取 + 用户看到）
+### 4.1 stdout (read by Claude + seen by the user)
 
-脚本输出**完整 Markdown**，Claude 几乎零加工直接呈现。示例结构：
+The script outputs **complete Markdown** that Claude presents with near zero post-processing. Example structure:
 
 ```markdown
-# 🧹 系统僵尸扫描报告
+# 🧹 System Zombie Scan Report
 
-**扫描时间**：2026-04-24 12:35:12
-**系统快照**：Load 4.5 | 内存用 30G，压缩器 11.4G，空闲 1.3G
-**预计可释放**：~2.1 GB（明确孤儿）+ ~1.8 GB（如清可疑项）
+**Scan time**: 2026-04-24 12:35:12
+**System snapshot**: Load 4.5 | memory used 30G, compressor 11.4G, free 1.3G
+**Estimated reclaim**: ~2.1 GB (explicit orphans) + ~1.8 GB (if you clean suspicious too)
 
-📄 完整结果已保存到 `~/Downloads/mac-cleanup-process-2026-04-24-123512.md`
-
----
-
-## ✅ 明确孤儿（建议闭眼清理）
-
-| 类别 | 数量 | PID 列表 |
-|------|-----|---------|
-| MCP 孤儿 | 10 | 2396, 8572, ... |
-| MCP 孤儿子进程 | 12 | 2458, 8614, ... |
-| Docker cagent 残留 | 51 | 35019, 35465, ... |
-
-**合计 73 个进程，预计释放 ~2.1 GB**
+📄 Full report saved to `~/Downloads/mac-cleanup-process-2026-04-24-123512.md`
 
 ---
 
-## ⚠️ 可疑 —— 需要你判断
+## ✅ Explicit Orphans (safe to nuke)
 
-### ① 老 claude 会话（>24h）
+| Category | Count | PID list |
+|----------|-------|----------|
+| MCP orphan | 10 | 2396, 8572, ... |
+| MCP orphan descendants | 12 | 2458, 8614, ... |
+| Docker cagent leftover | 51 | 35019, 35465, ... |
 
-- **PID 91608** [最可疑]
-  - 项目：`~/code/some-old-project`
-  - 运行时长：7 天 21 小时
-  - 内存：106 MB（自身）+ ~400 MB（18 个 MCP 子进程）
-  - 父进程链：终端 → zsh → claude
+**Total 73 processes, estimated reclaim ~2.1 GB**
 
-- **PID 19157** `[当前会话·勿杀]`
-  - 项目：`~/code/current-project`
-  - 运行时长：35 分钟
+---
 
-### ② 长期 dev server（>2 天）
+## ⚠️ Suspicious — Needs Your Judgment
+
+### ① Old claude sessions (>24h)
+
+- **PID 91608** [most suspicious]
+  - Project: `~/code/some-old-project`
+  - Runtime: 7 days 21 hours
+  - Memory: 106 MB (self) + ~400 MB (18 MCP children)
+  - Parent chain: terminal → zsh → claude
+
+- **PID 19157** `[current session — DO NOT KILL]`
+  - Project: `~/code/current-project`
+  - Runtime: 35 minutes
+
+### ② Long-running dev servers (>2 days)
 ...
 
-### ③ 长期未关的终端 tab（>3 天）
+### ③ Long-lived terminal tabs (>3 days)
 ...
 
-### ④ 大内存超龄（RSS >500MB 且 >3 天）
+### ④ Large-memory over-age (RSS >500MB and >3 days)
 ...
 
 ---
 
-## 💡 建议命令（复制即用）
+## 💡 Suggested Commands (copy-paste ready)
 
 ```bash
-# === 明确孤儿（可闭眼执行）===
+# === Explicit orphans (safe to nuke) ===
 kill 2396 8572 8641 ...
 pkill -9 -f cagent
 
-# === 可疑项（自行判断后取消注释）===
-# kill 91608   # 老 claude 会话，7 天没关 → 会带走 18 个 MCP 子进程
-# kill 3404    # vite dev server，挂了 13 天
+# === Suspicious items (uncomment after your own judgment) ===
+# kill 91608   # old claude session, 7 days idle → will reap 18 MCP children
+# kill 3404    # vite dev server, alive 13 days
 ```
 
 ---
 
-**使用提示**：
-- 建议命令块里已自动排除当前 claude 会话（PID 19157）
-- 如果想让我执行，回复 `kill 2396 8572 ...` 或 `执行明确孤儿清理`
-- 如果你自己复制到终端跑，我不会再做任何动作
+**Usage hints**:
+- The suggested-command block already excludes the current claude session (PID 19157)
+- To have me run them, reply `kill 2396 8572 ...` or `run explicit-orphan cleanup`
+- If you copy to a terminal yourself, I won't take any further action
 ```
 
-### 4.2 落盘
+### 4.2 Persistence
 
-- 位置：`~/Downloads/mac-cleanup-process-<timestamp>.md`
-- 内容：**与 stdout 完全相同的 Markdown**（脚本通过 tee 同时写两端）
-- 好处：Finder 预览 / VS Code / Typora 都能直接看，用户随时清理
-- 不保留历史对比机制（用户明确说可随时清）
+- Location: `~/Downloads/mac-cleanup-process-<timestamp>.md`
+- Content: **identical Markdown to stdout** (the script tees to both)
+- Benefit: opens directly in Finder Preview / VS Code / Typora; the user can clean any time
+- No historical-comparison machinery (the user explicitly said they'll clean as they like)
 
-### 4.3 空结果处理
+### 4.3 Empty Result Handling
 
-扫描没发现任何候选时，仍输出报告（"🎉 未发现僵尸，系统干净"），落盘照常 —— 便于用户查"今天几点扫过"。
-
----
-
-## 5. 交互流程（SKILL.md 指引 Claude 的行为）
-
-### 5.1 标准流程
-
-1. **执行扫描**：`bash <skill-dir>/scan.sh`
-2. **呈现报告**：把 stdout 原样呈现，允许补充少量上下文标签（如"最可疑"）
-3. **等待用户指令**：不主动催促，不自动再扫
-
-### 5.2 用户后续指令的处理
-
-| 用户回复 | Claude 处理 | 是否需要二次确认 |
-|---------|-----------|-----------------|
-| 不回复 / "好" / "知道了" | 什么都不做 | - |
-| `执行明确孤儿清理` / `一键清理` | 执行建议命令块里"明确孤儿"部分 | 否（报告已明示"可闭眼") |
-| `kill <PID1> <PID2>`（PID 可空格或逗号分隔） | 逐个 `kill` | 否（用户点名了具体 PID） |
-| `全部清理` / `清理所有可疑` 等模糊指令 | 反问"你是指也包括这些可疑项 [列表] 吗？" | 是 |
-| `dry run` / `只看不动` | 重申"skill 本来就是纯诊断" | - |
-
-### 5.3 kill 执行后验证
-
-1. `sleep 2` 等内核回收
-2. `ps -p <PID>` 验证目标确实退出
-3. 简短汇报（前后内存对比）
-4. **不** 自动再跑 scan
-
-### 5.4 核心约束（SKILL.md 加粗强调）
-
-1. **Claude 不得自作主张 kill**，只有用户明示后才动手
-2. **Claude 不得修改 scan.sh 的事实数据**，报告数据严格来自脚本输出
-3. **Claude 不得杀 `[当前会话·勿杀]` 标注的 PID**，即使用户明示。反问"你确认要杀当前会话吗？如果真要，请在终端手动执行"
+When the scan finds nothing, still output the report ("🎉 no zombies found, system clean"), persisted as usual — handy when the user wants to check "when was the last scan today".
 
 ---
 
-## 6. 技术决策
+## 5. Interaction Flow (SKILL.md directs Claude's behavior)
 
-### 6.1 实现方式
+### 5.1 Standard Flow
 
-**方案：脚本 + 交互式命令生成**（brainstorming 中方案 3）
-- `scan.sh` 输出完整 Markdown + 建议命令块
-- Claude 只做格式化呈现和响应用户后续指令
-- 理由：稳定、快速、可独立测试、误杀风险低
+1. **Run the scan**: `bash <skill-dir>/scan.sh`
+2. **Present the report**: surface stdout verbatim; a small amount of context labeling is OK (e.g. "most suspicious")
+3. **Wait for user instruction**: don't push; don't auto-rescan
 
-### 6.2 依赖
+### 5.2 Handling Follow-up Instructions
 
-| 工具 | 用途 |
-|-----|------|
-| `ps` | 核心 |
-| `pgrep` | 分类扫描 |
-| `awk` | 过滤 |
-| `lsof` | 项目路径推断（读 claude 进程 cwd） |
-| `vm_stat` / `sysctl` | 系统快照（内存/压缩器/load） |
+| User reply | Claude action | Second confirmation? |
+|------------|---------------|----------------------|
+| No reply / "ok" / "got it" | Do nothing | - |
+| "run explicit-orphan cleanup" / "one-click cleanup" | Run the "Explicit Orphans" section of the suggested-command block | No (report already labels these as "safe to nuke") |
+| `kill <PID1> <PID2>` (space or comma separated) | Kill each | No (user named specific PIDs) |
+| "clean everything" / "clean all suspicious" or other vague instructions | Ask back: "Do you mean including these suspicious items [list]?" | Yes |
+| "dry run" / "look only" | Reiterate "the skill is diagnostic-only by design" | - |
 
-**纯 macOS 原生工具，零外部依赖**（不依赖 jq、不依赖 GNU 工具集）。
+### 5.3 Post-kill Verification
 
-### 6.3 退出码
+1. `sleep 2` to let the kernel reap
+2. `ps -p <PID>` to verify the target actually exited
+3. Brief report (before/after memory comparison)
+4. **Don't** auto-rescan
 
-- `0`：扫描成功（包括"未发现僵尸"的正常情况）
-- `1`：脚本自身错误（ps 失败 / 权限异常 / 系统工具缺失）
+### 5.4 Core Constraints (bolded in SKILL.md)
 
-### 6.4 性能目标
-
-单次扫描 < 3 秒。
-
----
-
-## 7. 边界情况
-
-| 情况 | 处理 |
-|-----|------|
-| 首次运行发现什么都没有 | 报告仍输出"🎉 未发现僵尸"，落盘照常 |
-| 扫描过程中某 PID 已退出 | 容忍 `ps -p` 失败，跳过继续 |
-| 同一天跑了多次 | Downloads 里多个带时间戳文件，用户自行清理 |
-| Downloads 目录被删 | `mkdir -p ~/Downloads` 兜底 |
-| PPID 追溯链中断（普通终端测试） | `current_claude_pid` 置 null，跳过排除 |
-| 阈值不符合用户习惯 | 改 scan.sh 顶部常量 |
-| 命令行含密码 | 自动脱敏 `://user:***@` |
+1. **Claude must not kill on its own initiative** — only act after the user has explicitly said so
+2. **Claude must not modify the factual data emitted by scan.sh** — report data comes strictly from the script
+3. **Claude must not kill any PID tagged `[current session — DO NOT KILL]`**, even on explicit user request. Ask back: "Are you sure you want to kill the current session? If you really mean it, please do it manually in a terminal."
 
 ---
 
-## 8. 测试计划
+## 6. Technical Decisions
 
-MVP 阶段手动验证，不写自动化测试。
+### 6.1 Implementation Approach
 
-### 测试用例
+**Approach: script + interactive command generation** (option 3 from brainstorming)
+- `scan.sh` outputs full Markdown + suggested-command block
+- Claude only does formatting/presentation and responds to follow-up
+- Reasons: stable, fast, independently testable, low friendly-fire risk
 
-1. **干净状态**：清完所有可疑后跑 skill，期望"未发现僵尸"
-2. **伪造孤儿**：挂 `(sleep 10000) &; disown` 让 PPID=1 但命令不匹配 MCP 特征 → 期望不被识别
-3. **真实场景**：像 2026-04-24 调试时那样的僵尸堆积下跑，对比人工调试的结论
-4. **当前会话保护**：故意让 Claude 尝试 `kill <current_claude_pid>`，期望被守卫拦截
-5. **脱敏**：手工起一个 `mongodb://user:pass@host` 命令，期望报告里是 `mongodb://user:***@host`
+### 6.2 Dependencies
+
+| Tool | Use |
+|------|-----|
+| `ps` | Core |
+| `pgrep` | Categorized scanning |
+| `awk` | Filtering |
+| `lsof` | Project-path inference (reads claude process cwd) |
+| `vm_stat` / `sysctl` | System snapshot (memory / compressor / load) |
+
+**Pure macOS native tools, zero external dependencies** (no jq, no GNU toolset).
+
+### 6.3 Exit Codes
+
+- `0`: scan succeeded (including the "no zombies found" normal case)
+- `1`: script-level error (ps failed / permission anomaly / system tool missing)
+
+### 6.4 Performance Target
+
+Single scan < 3 seconds.
 
 ---
 
-## 9. 演进预留（不在 MVP 做）
+## 7. Edge Cases
 
-| 想法 | 何时可能会加 |
-|-----|-------------|
-| `--json` flag 强制输出 JSON | 想做"历史趋势分析"时 |
-| Claude Code Stop/SessionEnd hook 集成 | 手动跑不够频繁时 |
-| 排除列表（某个 PID/命令永不报告） | 某个"故意挂的"反复被误报时 |
-| 更多 dev server watcher（rollup/turbo） | 发现漏识别时 |
-| 其他 AI 工具的 MCP 识别 | 开始用其他 MCP 客户端时 |
+| Situation | Action |
+|-----------|--------|
+| First run finds nothing | Still emit "🎉 no zombies found", persist as usual |
+| A PID exits during scanning | Tolerate `ps -p` failure, skip and continue |
+| Multiple runs in one day | Multiple timestamped files in Downloads; user cleans on their own |
+| Downloads directory removed | `mkdir -p ~/Downloads` fallback |
+| PPID walk breaks (testing from plain terminal) | `current_claude_pid` is null, skip exclusion |
+| Threshold doesn't match user's habits | Edit the top-of-file constants in scan.sh |
+| Command line contains a password | Auto-redact `://user:***@` |
 
 ---
 
-## 10. 实施路径
+## 8. Test Plan
 
-交付物 = **3 个文件**：
+MVP stage relies on manual verification, no automated tests.
 
-1. `<skill-dir>/SKILL.md` —— 入口（frontmatter + 交互流程指引）
-2. `<skill-dir>/scan.sh` —— 核心脚本
-3. `<skill-dir>/README.md` —— 用户文档（讲阈值怎么调）
+### Test Cases
 
-实施顺序建议：
-1. 先写 `scan.sh`（核心功能）
-2. 手动跑几次验证输出（用今天真实系统状态测）
-3. 写 `SKILL.md` 指引 Claude 的交互行为
-4. 写 `README.md`
-5. 在真实"感觉卡"的场景再测一次端到端
+1. **Clean state**: after cleaning all suspicious items, run the skill — expect "no zombies found"
+2. **Fake orphan**: spawn `(sleep 10000) &; disown` so PPID=1 but the command doesn't match MCP signatures → expect not detected
+3. **Real scenario**: run during a real zombie pile-up like 2026-04-24, compare with the manual-debug conclusions
+4. **Current-session protection**: deliberately ask Claude to `kill <current_claude_pid>` — expect the guard to block
+5. **Redaction**: manually start a `mongodb://user:pass@host` command — expect the report to show `mongodb://user:***@host`
 
-实施计划（任务拆分）由后续 `writing-plans` skill 产出。
+---
+
+## 9. Future-proofing (not in MVP)
+
+| Idea | When it might land |
+|------|---------------------|
+| `--json` flag to force JSON output | When we want historical trend analysis |
+| Claude Code Stop/SessionEnd hook integration | When manual runs aren't frequent enough |
+| Exclusion list (a PID/command never reported) | When some "intentionally running" thing keeps getting flagged |
+| More dev server watchers (rollup/turbo) | When we discover gaps |
+| Other AI tool MCP detection | When we start using non-Claude MCP clients |
+
+---
+
+## 10. Implementation Path
+
+Deliverables = **3 files**:
+
+1. `<skill-dir>/SKILL.md` — entry (frontmatter + interaction guide)
+2. `<skill-dir>/scan.sh` — core script
+3. `<skill-dir>/README.md` — user docs (threshold tuning)
+
+Suggested order:
+1. Write `scan.sh` first (core functionality)
+2. Manually run a few times to verify output (test against today's real system state)
+3. Write `SKILL.md` to direct Claude's interaction
+4. Write `README.md`
+5. End-to-end test once more in a real "feels slow" scenario
+
+Task breakdown is produced by the subsequent `writing-plans` skill.

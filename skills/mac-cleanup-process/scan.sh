@@ -1,53 +1,53 @@
 #!/usr/bin/env bash
-# mac-cleanup-process scan.sh — 诊断 macOS 僵尸/卡死进程，只扫描不 kill
-# 详见同目录 DESIGN.md
+# mac-cleanup-process scan.sh — diagnose macOS zombie / stuck processes. Scan only, never kill.
+# See DESIGN.md in the same directory for details.
 
-set -u  # 未定义变量报错
+set -u  # error on undefined variables
 set -o pipefail
 
-# 预检：ps 命令不可用则直接失败
+# Pre-flight: fail fast if ps is unavailable
 if ! ps -eo pid=,ppid= > /dev/null 2>&1; then
-  echo "ERROR: ps 命令不可用或权限异常" >&2
+  echo "ERROR: ps command unavailable or permission denied" >&2
   exit 1
 fi
 
-# ===== 阈值常量（用户可改） =====
+# ===== Threshold constants (user-tunable) =====
 OLD_CLAUDE_HOURS=24
 OLD_DEV_SERVER_DAYS=2
 OLD_SHELL_TAB_DAYS=3
 BIG_MEM_RSS_MB=500
 BIG_MEM_DAYS=3
 
-# ===== 基础设施 =====
+# ===== Infrastructure =====
 timestamp="$(date +%Y-%m-%d-%H%M%S)"
 output_dir="$HOME/Downloads"
 output_file="$output_dir/mac-cleanup-process-$timestamp.md"
 mkdir -p "$output_dir"
 
-# 系统快照
+# System snapshot
 get_system_snapshot() {
   local load_1m mem_used compressor free
   load_1m="$(sysctl -n vm.loadavg | awk '{print $2}')"
-  # top 的 PhysMem 行形如: "PhysMem: 30G used (4288M wired, 11G compressor), 329M unused."
+  # top's PhysMem line looks like: "PhysMem: 30G used (4288M wired, 11G compressor), 329M unused."
   local physmem
   physmem="$(top -l 1 -n 0 | awk -F'[:,]' '/^PhysMem/ {print}')"
   mem_used="$(echo "$physmem" | awk '{print $2}')"
   compressor="$(echo "$physmem" | grep -oE '[0-9]+[KMG] compressor' | awk '{print $1}')"
   free="$(echo "$physmem" | grep -oE '[0-9]+[KMG] unused' | awk '{print $1}')"
-  echo "Load ${load_1m:-?} | 内存用 ${mem_used:-?}，压缩器 ${compressor:-?}，空闲 ${free:-?}"
+  echo "Load ${load_1m:-?} | memory used ${mem_used:-?}, compressor ${compressor:-?}, free ${free:-?}"
 }
 
-# 从 $$ 向上追溯 PPID，找第一个命令匹配 claude 的进程 PID
-# 失败返回空
+# Walk up PPID from $$, find the first ancestor whose command matches claude.
+# Empty on failure.
 find_current_claude_pid() {
   local pid=$$
-  local max_depth=20  # 防止追溯死循环
+  local max_depth=20  # prevent infinite loop
   local i=0
   while [ "$pid" != "1" ] && [ "$pid" != "0" ] && [ -n "$pid" ] && [ $i -lt $max_depth ]; do
     local comm
     comm="$(ps -p "$pid" -o comm= 2>/dev/null | awk '{print $1}')"
-    # comm 可能是 "claude"，也可能是 claude 被重命名的内部值（如 "2.1.119"）
-    # 更稳健：用完整 command 匹配
+    # comm may be "claude", or claude's renamed internal value (e.g. "2.1.119").
+    # More robust: match against the full command.
     local full_cmd
     full_cmd="$(ps -p "$pid" -o command= 2>/dev/null)"
     if echo "$full_cmd" | grep -qE '(^|/)claude(\s|$)'; then
@@ -60,23 +60,23 @@ find_current_claude_pid() {
   echo ""
 }
 
-# 脱敏命令行中的密码：scheme://user:password@host → scheme://user:***@host
+# Redact passwords in command lines: scheme://user:password@host → scheme://user:***@host
 sanitize_cmd() {
   sed -E 's#(://[A-Za-z0-9._-]+):[^@[:space:]]+@#\1:***@#g'
 }
 
-# MCP 服务命令特征（扩展 ERE 正则）
+# MCP service command signature (extended ERE regex)
 readonly MCP_PATTERN='(npm exec.*mcp|mcp-server-|@playwright/mcp|@upstash/context7-mcp|@modelcontextprotocol/|@henkey/postgres-mcp-server|figma-developer-mcp|xcodebuildmcp|mcp-mongo-server|alibabacloud-devops-mcp-server|drawio/mcp|context7-mcp|chrome-devtools-mcp|Pencil.app/Contents/Resources/app.asar.unpacked/out/mcp-server)'
 
-# 找 PPID=1 且命令匹配 MCP 特征的进程（当前用户）
-# 输出格式: PID<TAB>etime<TAB>rss<TAB>sanitized_command
+# Find PPID=1 processes (current user) whose command matches MCP_PATTERN.
+# Output format: PID<TAB>etime<TAB>rss<TAB>sanitized_command
 find_mcp_orphans() {
   local my_uid
   my_uid="$(id -u)"
-  # ps -eo 格式: uid pid ppid etime rss command
+  # ps -eo format: uid pid ppid etime rss command
   ps -eo uid=,pid=,ppid=,etime=,rss=,command= 2>/dev/null | awk -v uid="$my_uid" '
     $1 == uid && $3 == 1 {
-      # 重组 command（从第 6 列开始）
+      # Reassemble command (from column 6 on)
       cmd = ""
       for (i = 6; i <= NF; i++) cmd = (cmd == "" ? $i : cmd " " $i)
       print $2 "\t" $4 "\t" $5 "\t" cmd
@@ -84,7 +84,7 @@ find_mcp_orphans() {
   ' | grep -E "$MCP_PATTERN" | while IFS=$'\t' read -r pid etime rss cmd; do
     local sanitized
     sanitized="$(echo "$cmd" | sanitize_cmd)"
-    # 命令摘要截断（避免表格爆宽）
+    # Truncate command summary (keep table width sane)
     local summary
     summary="$(echo "$sanitized" | cut -c1-80)"
     local rss_mb=$((rss / 1024))
@@ -92,7 +92,7 @@ find_mcp_orphans() {
   done
 }
 
-# 给定一个 PID 列表（换行分隔），递归收集所有后代 PID
+# Given a newline-separated PID list, recursively collect all descendant PIDs.
 collect_descendants() {
   local parents="$1"
   [ -z "$parents" ] && return
@@ -108,14 +108,15 @@ collect_descendants() {
   done <<< "$parents"
   if [ -n "$all_kids" ]; then
     echo "$all_kids"
-    # 递归：kids 的 kids
+    # Recurse: kids' kids
     collect_descendants "$all_kids"
   fi
 }
 
-# 从 MCP 孤儿的 PID 列表，递归找到所有后代，输出为带详情的表格行
+# From the MCP orphan PID list, recursively find all descendants and output
+# table rows with details.
 find_mcp_orphan_children() {
-  local parent_pids="$1"  # 换行分隔
+  local parent_pids="$1"  # newline-separated
   [ -z "$parent_pids" ] && return
   local all_descendants
   all_descendants="$(collect_descendants "$parent_pids" | sort -u | grep -v '^$')"
@@ -138,16 +139,16 @@ find_mcp_orphan_children() {
   done <<< "$all_descendants"
 }
 
-# Docker UI 是否在跑
+# Whether the Docker UI is running
 is_docker_ui_running() {
   pgrep -x -f '/Applications/Docker.app/Contents/MacOS/Docker' > /dev/null 2>&1
 }
 
-# 找 cagent 残留进程（仅当 Docker UI 未运行时）
-# 输出格式: PID<TAB>etime<TAB>rss_mb<TAB>command_summary
+# Find leftover cagent processes (only when the Docker UI is NOT running).
+# Output format: PID<TAB>etime<TAB>rss_mb<TAB>command_summary
 find_cagent_residuals() {
   if is_docker_ui_running; then
-    return 0  # 空输出 = 没有残留
+    return 0  # empty output = no residuals
   fi
   local my_uid
   my_uid="$(id -u)"
@@ -166,7 +167,7 @@ find_cagent_residuals() {
   done
 }
 
-# 把 etime 字符串转换为总小时数（整数，向下取整；mins >= 30 进 1）
+# Convert an etime string to a total hour count (integer, floored; mins >= 30 rounds up).
 etime_to_hours() {
   local etime="$1"
   local days=0 hours=0 mins=0
@@ -183,16 +184,16 @@ etime_to_hours() {
     hours=0
     mins="${parts[0]}"
   fi
-  # 去掉前导 0 以防被当 8 进制
+  # Strip leading zeros to avoid octal interpretation
   days=$((10#$days))
   hours=$((10#$hours))
   mins=$((10#$mins))
   echo $((days * 24 + hours + (mins >= 30 ? 1 : 0)))
 }
 
-# "7-21:28:08" → "7 天 21 小时"
-# "23:30:05"   → "23 小时 30 分"
-# "40:12"      → "40 分钟"
+# "7-21:28:08" → "7 days 21 hours"
+# "23:30:05"   → "23 hours 30 min"
+# "40:12"      → "40 minutes"
 etime_humanize() {
   local etime="$1"
   local days=0 hours=0 mins=0
@@ -210,22 +211,23 @@ etime_humanize() {
   days=$((10#$days)); hours=$((10#$hours)); mins=$((10#$mins))
 
   if [ "$days" -gt 0 ]; then
-    echo "$days 天 $hours 小时"
+    echo "$days days $hours hours"
   elif [ "$hours" -gt 0 ]; then
-    echo "$hours 小时 $mins 分"
+    echo "$hours hours $mins min"
   else
-    echo "$mins 分钟"
+    echo "$mins minutes"
   fi
 }
 
-# 用 lsof 读进程的 cwd
+# Read a process's cwd via lsof
 get_cwd() {
   local pid="$1"
   lsof -p "$pid" 2>/dev/null | awk '$4 == "cwd" {for (i=9; i<=NF; i++) printf "%s%s", $i, (i<NF?" ":""); exit}'
 }
 
-# 把绝对路径里的 $HOME 替换为 ~
-# 用 case 分支而非 bash pattern substitution，避免某些 bash 版本对 ${p/#$home/~} 的边界情况处理不一致
+# Replace $HOME prefix in an absolute path with ~.
+# Use case branches rather than bash pattern substitution to dodge inconsistencies in
+# how some bash versions handle ${p/#$home/~} edge cases.
 tildify_path() {
   local p="$1"
   case "$p" in
@@ -235,7 +237,7 @@ tildify_path() {
   esac
 }
 
-# 父进程链（进程名），最多上溯 5 层
+# Parent chain (process names), up to 5 levels
 parent_chain() {
   local pid="$1"
   local chain="" cur="$pid"
@@ -251,17 +253,17 @@ parent_chain() {
   echo "$chain"
 }
 
-# 找老 claude 会话
-# 参数: $1 = current_claude_pid（可空）
-# 输出每行: PID<TAB>etime<TAB>etime_human<TAB>cwd<TAB>rss_mb<TAB>mcp_children_count<TAB>parent_chain<TAB>flags
-# flags: "current" / "most_suspicious" / 空
+# Find old claude sessions
+# Args: $1 = current_claude_pid (may be empty)
+# Output per line: PID<TAB>etime<TAB>etime_human<TAB>cwd<TAB>rss_mb<TAB>mcp_children_count<TAB>parent_chain<TAB>flags
+# flags: "current" / "most_suspicious" / empty
 find_old_claude_sessions() {
   local current_claude="$1"
   local threshold_hours="$OLD_CLAUDE_HOURS"
   local my_uid
   my_uid="$(id -u)"
 
-  # 所有 claude 进程（完整 command 含 claude 词）
+  # All claude processes (full command contains the claude word)
   local candidates
   candidates="$(ps -eo uid=,pid=,etime=,rss=,command= 2>/dev/null | awk -v uid="$my_uid" '
     $1 == uid {
@@ -271,7 +273,7 @@ find_old_claude_sessions() {
     }
   ')"
 
-  # 筛选超阈值 + 找最老的
+  # Filter over-threshold + find the oldest
   local filtered=""
   local max_hours=0
   local max_pid=""
@@ -290,7 +292,7 @@ find_old_claude_sessions() {
 
   [ -z "$filtered" ] && return 0
 
-  # 补充详情
+  # Add details
   while IFS=$'\t' read -r pid etime rss; do
     [ -z "$pid" ] && continue
     local human cwd_raw cwd_tilde rss_mb mcp_count chain flags=""
@@ -298,7 +300,7 @@ find_old_claude_sessions() {
     cwd_raw="$(get_cwd "$pid")"
     cwd_tilde="$(tildify_path "${cwd_raw:-?}")"
     rss_mb=$((rss / 1024))
-    # MCP 子进程数：递归收集 + 过滤 MCP 特征
+    # MCP children count: recursively collect + filter by MCP signature
     local descendants
     descendants="$(collect_descendants "$pid" | sort -u | grep -v '^$')"
     if [ -z "$descendants" ]; then
@@ -324,7 +326,7 @@ find_old_claude_sessions() {
 
 readonly DEV_SERVER_PATTERN='(vite|webpack|pnpm dev|next dev|nuxt dev|npm run dev|yarn dev|rollup.*watch)'
 
-# 输出: PID<TAB>etime<TAB>etime_human<TAB>cwd<TAB>command_summary
+# Output: PID<TAB>etime<TAB>etime_human<TAB>cwd<TAB>command_summary
 find_old_dev_servers() {
   local threshold_hours=$((OLD_DEV_SERVER_DAYS * 24))
   local my_uid
@@ -355,17 +357,17 @@ find_old_dev_servers() {
   done <<< "$candidates"
 }
 
-# 长寿命登录 shell（终端 tab）— 匹配任何由 /usr/bin/login 启动的老 zsh
-# 输出: PID<TAB>etime<TAB>etime_human
+# Long-lived login shell (terminal tab) — matches any old zsh launched by /usr/bin/login
+# Output: PID<TAB>etime<TAB>etime_human
 find_old_shell_tabs() {
   local threshold_hours=$((OLD_SHELL_TAB_DAYS * 24))
   local my_uid
   my_uid="$(id -u)"
-  # 先找所有 zsh 进程
+  # First, find all zsh processes
   ps -eo uid=,pid=,ppid=,etime=,comm= 2>/dev/null | awk -v uid="$my_uid" '
     $1 == uid && $5 ~ /zsh$/ { print $2 "\t" $3 "\t" $4 }
   ' | while IFS=$'\t' read -r pid ppid etime; do
-    # 父进程命令是否为 /usr/bin/login
+    # Is the parent process /usr/bin/login?
     local parent_cmd
     parent_cmd="$(ps -p "$ppid" -o command= 2>/dev/null | awk '{print $1}')"
     [ "$parent_cmd" != "/usr/bin/login" ] && continue
@@ -378,8 +380,8 @@ find_old_shell_tabs() {
   done
 }
 
-# excluded_pids: 换行分隔的 PID 字符串，这些已被前面规则覆盖不再重复列
-# 输出: PID<TAB>etime_human<TAB>rss_mb<TAB>command_summary
+# excluded_pids: newline-separated PID list — already covered by a previous rule, don't list again
+# Output: PID<TAB>etime_human<TAB>rss_mb<TAB>command_summary
 find_big_mem_old() {
   local excluded_pids="$1"
   local threshold_hours=$((BIG_MEM_DAYS * 24))
@@ -387,7 +389,8 @@ find_big_mem_old() {
   local my_uid
   my_uid="$(id -u)"
 
-  # 构造 excluded 查找表（关联数组在 Bash 3.2 不支持，用临时文件 + grep -xF）
+  # Build the excluded-lookup file (associative arrays aren't in Bash 3.2;
+  # use a temp file + grep -xF)
   local excl_file
   excl_file="$(mktemp)"
   echo "$excluded_pids" > "$excl_file"
@@ -399,7 +402,7 @@ find_big_mem_old() {
       print $2 "\t" $3 "\t" $4 "\t" cmd
     }
   ' | while IFS=$'\t' read -r pid etime rss cmd; do
-    # 检查是否被排除
+    # Check if excluded
     if grep -qxF "$pid" "$excl_file"; then
       continue
     fi
@@ -417,93 +420,93 @@ find_big_mem_old() {
   rm -f "$excl_file"
 }
 
-# ===== 报告生成 =====
+# ===== Report generation =====
 render_mcp_orphans_section() {
   local rows="$1"
   echo ""
-  echo "### MCP server 孤儿"
+  echo "### MCP server orphans"
   echo ""
   if [ -z "$rows" ]; then
-    echo "（无）"
+    echo "(none)"
     return
   fi
-  echo "| PID | etime | RSS (MB) | 命令摘要 |"
-  echo "|-----|-------|---------|---------|"
+  echo "| PID | etime | RSS (MB) | Command summary |"
+  echo "|-----|-------|----------|-----------------|"
   while IFS=$'\t' read -r pid etime rss summary; do
     echo "| $pid | $etime | $rss | $summary |"
   done <<< "$rows"
   local count
   count="$(echo "$rows" | wc -l | tr -d ' ')"
   echo ""
-  echo "**共 $count 个。**"
+  echo "**$count total.**"
 }
 
 render_mcp_children_section() {
-  local child_rows="$1"  # 已经是详情行（PID<TAB>PPID<TAB>etime<TAB>rss_mb<TAB>summary）
+  local child_rows="$1"  # already detailed rows (PID<TAB>PPID<TAB>etime<TAB>rss_mb<TAB>summary)
 
   echo ""
-  echo "### MCP 孤儿子进程"
+  echo "### MCP orphan descendants"
   echo ""
   if [ -z "$child_rows" ]; then
-    echo "（无）"
+    echo "(none)"
     return
   fi
-  echo "| PID | 父 PID | etime | RSS (MB) | 命令摘要 |"
-  echo "|-----|-------|-------|---------|---------|"
+  echo "| PID | Parent PID | etime | RSS (MB) | Command summary |"
+  echo "|-----|------------|-------|----------|-----------------|"
   while IFS=$'\t' read -r pid ppid etime rss summary; do
     echo "| $pid | $ppid | $etime | $rss | $summary |"
   done <<< "$child_rows"
   local count
   count="$(echo "$child_rows" | wc -l | tr -d ' ')"
   echo ""
-  echo "**共 $count 个（kill 上述 MCP 父孤儿时会自动带走这些子进程）。**"
+  echo "**$count total (killing the MCP parents above will reap these automatically).**"
 }
 
 render_cagent_section() {
   local rows="$1"
   echo ""
-  echo "### Docker cagent 残留"
+  echo "### Docker cagent leftovers"
   echo ""
   if is_docker_ui_running; then
-    echo "（Docker UI 正在运行，跳过扫描 cagent）"
+    echo "(Docker UI is running, cagent scan skipped)"
     return
   fi
   if [ -z "$rows" ]; then
-    echo "（无）"
+    echo "(none)"
     return
   fi
-  echo "| PID | etime | RSS (MB) | 命令摘要 |"
-  echo "|-----|-------|---------|---------|"
+  echo "| PID | etime | RSS (MB) | Command summary |"
+  echo "|-----|-------|----------|-----------------|"
   while IFS=$'\t' read -r pid etime rss summary; do
     echo "| $pid | $etime | $rss | $summary |"
   done <<< "$rows"
   local count
   count="$(echo "$rows" | wc -l | tr -d ' ')"
   echo ""
-  echo "**共 $count 个（Docker UI 未运行，这些 cagent 可闭眼清理）。**"
+  echo "**$count total (Docker UI is not running; these cagent processes are safe to nuke).**"
 }
 
 render_old_claude_section() {
   local current_claude="$1"
   local rows="$2"
   echo ""
-  echo "### ① 老 claude 会话（>${OLD_CLAUDE_HOURS}h）"
+  echo "### ① Old claude sessions (>${OLD_CLAUDE_HOURS}h)"
   echo ""
   if [ -z "$rows" ]; then
-    echo "（无）"
+    echo "(none)"
     return
   fi
   while IFS=$'\t' read -r pid etime human cwd rss mcp_count chain flags; do
     local label=""
     case "$flags" in
-      current) label=' `[当前会话·勿杀]`' ;;
-      most_suspicious) label=' [最可疑]' ;;
+      current) label=' `[current session — DO NOT KILL]`' ;;
+      most_suspicious) label=' [most suspicious]' ;;
     esac
     echo "- **PID $pid**$label"
-    echo "  - 项目：\`$cwd\`"
-    echo "  - 运行时长：$human"
-    echo "  - 内存：${rss} MB（自身）+ ${mcp_count} 个 MCP 子进程"
-    echo "  - 父进程链：$chain"
+    echo "  - Project: \`$cwd\`"
+    echo "  - Runtime: $human"
+    echo "  - Memory: ${rss} MB (self) + ${mcp_count} MCP children"
+    echo "  - Parent chain: $chain"
     echo ""
   done <<< "$rows"
 }
@@ -511,17 +514,17 @@ render_old_claude_section() {
 render_old_dev_server_section() {
   local rows="$1"
   echo ""
-  echo "### ② 长期 dev server（>${OLD_DEV_SERVER_DAYS} 天）"
+  echo "### ② Long-running dev servers (>${OLD_DEV_SERVER_DAYS} days)"
   echo ""
   if [ -z "$rows" ]; then
-    echo "（无）"
+    echo "(none)"
     return
   fi
   while IFS=$'\t' read -r pid etime human cwd summary; do
     echo "- **PID $pid**"
-    echo "  - 命令：\`$summary\`"
-    echo "  - 项目：\`$cwd\`"
-    echo "  - 运行时长：$human"
+    echo "  - Command: \`$summary\`"
+    echo "  - Project: \`$cwd\`"
+    echo "  - Runtime: $human"
     echo ""
   done <<< "$rows"
 }
@@ -529,10 +532,10 @@ render_old_dev_server_section() {
 render_old_shell_section() {
   local rows="$1"
   echo ""
-  echo "### ③ 长期未关的终端 tab（>${OLD_SHELL_TAB_DAYS} 天）"
+  echo "### ③ Long-lived terminal tabs (>${OLD_SHELL_TAB_DAYS} days)"
   echo ""
   if [ -z "$rows" ]; then
-    echo "（无）"
+    echo "(none)"
     return
   fi
   while IFS=$'\t' read -r pid etime human; do
@@ -541,16 +544,16 @@ render_old_shell_section() {
   local count
   count="$(echo "$rows" | wc -l | tr -d ' ')"
   echo ""
-  echo "**共 $count 个。在对应终端里 Cmd+W 关闭即可（任何 macOS 终端：Terminal / iTerm2 / Ghostty / WezTerm 等都适用）。**"
+  echo "**$count total. Just close them with Cmd+W in the corresponding terminal (works with any macOS terminal: Terminal / iTerm2 / Ghostty / WezTerm, etc.).**"
 }
 
 render_big_mem_section() {
   local rows="$1"
   echo ""
-  echo "### ④ 大内存超龄（RSS >${BIG_MEM_RSS_MB}MB 且 >${BIG_MEM_DAYS} 天）"
+  echo "### ④ Large-memory over-age (RSS >${BIG_MEM_RSS_MB}MB and >${BIG_MEM_DAYS} days)"
   echo ""
   if [ -z "$rows" ]; then
-    echo "（无）"
+    echo "(none)"
     return
   fi
   while IFS=$'\t' read -r pid human rss_mb summary; do
@@ -569,62 +572,63 @@ render_suggested_commands() {
   echo ""
   echo "---"
   echo ""
-  echo "## 💡 建议命令（复制即用）"
+  echo "## 💡 Suggested commands (copy-paste ready)"
   echo ""
   echo '```bash'
 
-  # 明确孤儿
+  # Explicit orphans
   local has_obvious=""
   local mcp_pids
   mcp_pids="$(echo "$mcp_rows" | awk -F'\t' 'NF>0 {print $1}' | tr '\n' ' ' | sed 's/ $//')"
   if [ -n "$mcp_pids" ]; then
-    echo "# === 明确孤儿（可闭眼执行）==="
-    echo "# MCP 孤儿 + 子进程（kill 父孤儿后子进程会自动退出）"
+    echo "# === Explicit orphans (safe to nuke) ==="
+    echo "# MCP orphans + descendants (killing the parents reaps the children automatically)"
     echo "kill $mcp_pids"
     has_obvious=1
   fi
   if [ -n "$cagent_rows" ]; then
-    [ -z "$has_obvious" ] && echo "# === 明确孤儿（可闭眼执行）==="
+    [ -z "$has_obvious" ] && echo "# === Explicit orphans (safe to nuke) ==="
     echo ""
-    echo "# Docker cagent 残留"
+    echo "# Docker cagent leftovers"
     echo "pkill -9 -f cagent"
     has_obvious=1
   fi
 
-  # 可疑项
+  # Suspicious items
   local has_suspicious=""
   local suspicious_lines=""
 
-  # 老 claude（排除当前）
+  # Old claude (excluding current)
   if [ -n "$oldc_rows" ]; then
     while IFS=$'\t' read -r pid etime human cwd rss mcp_count chain flags; do
       [ -z "$pid" ] && continue
       if [ "$flags" = "current" ] || [ "$pid" = "$current_claude" ]; then
-        continue  # 绝不 suggest kill 当前会话
+        continue  # NEVER suggest killing the current session
       fi
       local basename
       basename="$(echo "$cwd" | awk -F/ '{print $NF}')"
-      local note="$basename 老 claude, $human"
+      local note="$basename old claude, $human"
       if [ "$mcp_count" -gt 0 ]; then
-        note="$note → 会带走 $mcp_count 个 MCP 子进程"
+        note="$note → will reap $mcp_count MCP children"
       fi
       suspicious_lines+="# kill $pid   # $note"$'\n'
       has_suspicious=1
     done <<< "$oldc_rows"
   fi
 
-  # 老 dev server
+  # Old dev servers
   if [ -n "$olds_rows" ]; then
     while IFS=$'\t' read -r pid etime human cwd summary; do
       [ -z "$pid" ] && continue
       local basename
       basename="$(echo "$cwd" | awk -F/ '{print $NF}')"
-      suspicious_lines+="# kill $pid   # $basename dev server, 挂了 $human"$'\n'
+      suspicious_lines+="# kill $pid   # $basename dev server, alive $human"$'\n'
       has_suspicious=1
     done <<< "$olds_rows"
   fi
 
-  # 大内存超龄（长寿命 shell tab 不放这里，因为只建议"关 tab"不建议 kill zsh）
+  # Large-memory over-age (long-lived shell tabs are not listed here, since we
+  # only recommend "close the tab", not "kill zsh")
   if [ -n "$bigmem_rows" ]; then
     while IFS=$'\t' read -r pid human rss_mb summary; do
       [ -z "$pid" ] && continue
@@ -635,7 +639,7 @@ render_suggested_commands() {
 
   if [ -n "$has_suspicious" ]; then
     echo ""
-    echo "# === 可疑项（自行判断后取消注释）==="
+    echo "# === Suspicious items (uncomment after your own judgment) ==="
     echo -n "$suspicious_lines"
   fi
 
@@ -643,12 +647,12 @@ render_suggested_commands() {
   echo ""
   echo "---"
   echo ""
-  echo "**使用提示**："
+  echo "**Usage hints**:"
   if [ -n "$current_claude" ]; then
-    echo "- 建议命令块里已自动排除当前 claude 会话（PID ${current_claude}）"
+    echo "- The suggested-command block already excludes the current claude session (PID ${current_claude})"
   fi
-  echo "- 如果想让我执行，回复 \`kill <PID>\` 或 \`执行明确孤儿清理\`"
-  echo "- 如果你自己复制到终端跑，我不会再做任何动作"
+  echo "- To have me execute, reply \`kill <PID>\` or \`run explicit-orphan cleanup\`"
+  echo "- If you copy to a terminal yourself, I won't take any further action"
 }
 
 render_report() {
@@ -659,12 +663,12 @@ render_report() {
 
   local guard_line
   if [ -n "$current_claude" ]; then
-    guard_line="**当前会话·勿杀**：PID $current_claude"
+    guard_line="**Current session — DO NOT KILL**: PID $current_claude"
   else
-    guard_line="**当前会话·勿杀**：（未识别，所有 claude 进程都可作为清理候选）"
+    guard_line="**Current session — DO NOT KILL**: (not identified; all claude processes are cleanup candidates)"
   fi
 
-  # 一次性扫描所有类别 —— 缓存到变量避免重复调用
+  # Scan every category once — cache to variables to avoid duplicate calls
   local mcp_rows mcp_kids_rows cagent_rows oldc_rows olds_rows ghost_rows bigmem_rows
   mcp_rows="$(find_mcp_orphans)"
 
@@ -677,7 +681,7 @@ render_report() {
   olds_rows="$(find_old_dev_servers)"
   shell_rows="$(find_old_shell_tabs)"
 
-  # 聚合已分类 PID（大内存节去重用）
+  # Aggregate classified PIDs (used to dedupe the large-memory section)
   local classified
   classified="$(printf '%s\n%s\n%s\n%s\n%s\n%s\n' \
     "$(echo "$mcp_rows" | awk -F'\t' 'NF>0 {print $1}')" \
@@ -688,7 +692,7 @@ render_report() {
     "$(echo "$ghost_rows" | awk -F'\t' 'NF>0 {print $1}')")"
   bigmem_rows="$(find_big_mem_old "$classified")"
 
-  # 统计 —— 明确孤儿
+  # Stats — explicit orphans
   local obvious_count=0 obvious_rss=0
   if [ -n "$mcp_rows" ]; then
     obvious_count=$((obvious_count + $(echo "$mcp_rows" | wc -l | tr -d ' ')))
@@ -703,7 +707,7 @@ render_report() {
     obvious_rss=$((obvious_rss + $(echo "$cagent_rows" | awk -F'\t' '{s+=$3} END {print s+0}')))
   fi
 
-  # 统计 —— 可疑项
+  # Stats — suspicious
   local suspicious_count=0 suspicious_rss=0
   if [ -n "$oldc_rows" ]; then
     suspicious_count=$((suspicious_count + $(echo "$oldc_rows" | wc -l | tr -d ' ')))
@@ -720,18 +724,18 @@ render_report() {
     suspicious_rss=$((suspicious_rss + $(echo "$bigmem_rows" | awk -F'\t' '{s+=$3} END {print s+0}')))
   fi
 
-  # 摘要行
+  # Summary line
   local summary_lines=""
   if [ "$obvious_count" -gt 0 ] || [ "$suspicious_count" -gt 0 ]; then
-    local release_line="**预计可释放**：~${obvious_rss} MB（明确孤儿）"
+    local release_line="**Estimated reclaim**: ~${obvious_rss} MB (explicit orphans)"
     if [ "$suspicious_rss" -gt 0 ]; then
-      release_line+=" + ~${suspicious_rss} MB（如清可疑项）"
+      release_line+=" + ~${suspicious_rss} MB (if you clean suspicious too)"
     fi
     summary_lines="$release_line
-**扫描结果**：${obvious_count} 个明确孤儿 · ${suspicious_count} 个可疑待判断"
+**Scan result**: ${obvious_count} explicit orphans · ${suspicious_count} suspicious — needs judgment"
   fi
 
-  # 判断全局是否完全没有候选
+  # Detect globally-empty case
   local total_rows=0
   local rows
   for rows in "$mcp_rows" "$mcp_kids_rows" "$cagent_rows" "$oldc_rows" "$olds_rows" "$ghost_rows" "$bigmem_rows"; do
@@ -740,40 +744,40 @@ render_report() {
     fi
   done
 
-  # 输出头部（无论干净与否都要出）
+  # Emit the header (regardless of clean state)
   cat <<EOF
-# 🧹 系统僵尸扫描报告
+# 🧹 System Zombie Scan Report
 
-**扫描时间**：$display_time
-**系统快照**：$snapshot
+**Scan time**: $display_time
+**System snapshot**: $snapshot
 $guard_line
 
-📄 完整结果已保存到 \`$output_file\`
+📄 Full report saved to \`$output_file\`
 
 ---
 
 EOF
 
   if [ "$total_rows" -eq 0 ]; then
-    echo "## 🎉 未发现僵尸"
+    echo "## 🎉 No zombies found"
     echo ""
-    echo "系统干净，无需清理。"
+    echo "System is clean. Nothing to do."
     return
   fi
 
-  # 有候选时插入摘要行到报告
+  # Insert summary lines into the report when there are candidates
   if [ -n "$summary_lines" ]; then
     echo "$summary_lines"
     echo ""
   fi
 
-  echo "## ✅ 明确孤儿（建议闭眼清理）"
+  echo "## ✅ Explicit orphans (safe to nuke)"
   render_mcp_orphans_section "$mcp_rows"
   render_mcp_children_section "$mcp_kids_rows"
   render_cagent_section "$cagent_rows"
 
   echo ""
-  echo "## ⚠️ 可疑 —— 需要你判断"
+  echo "## ⚠️ Suspicious — needs your judgment"
   render_old_claude_section "$current_claude" "$oldc_rows"
   render_old_dev_server_section "$olds_rows"
   render_old_shell_section "$shell_rows"
@@ -788,12 +792,12 @@ EOF
     "$current_claude"
 }
 
-# ===== 主流程 =====
+# ===== Main =====
 main() {
   render_report | tee "$output_file"
 }
 
-# 只在直接执行时跑主流程，source 时不跑
+# Only run main when executed directly, not when sourced
 if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
   main "$@"
 fi

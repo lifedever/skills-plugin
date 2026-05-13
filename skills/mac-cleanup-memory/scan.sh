@@ -1,36 +1,36 @@
 #!/usr/bin/env bash
-# mac-cleanup-memory scan.sh —— macOS 内存状态全景诊断（纯诊断，不 kill）
-# 详见同目录 DESIGN.md
+# mac-cleanup-memory scan.sh — macOS memory landscape diagnostic (diagnosis only, never kills)
+# See DESIGN.md in the same directory for details.
 
 set -u
 set -o pipefail
 
-# 预检：必须有 vm_stat / ps / sysctl
+# Pre-flight: vm_stat / ps / sysctl must exist
 for cmd in vm_stat ps sysctl; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
-    echo "ERROR: 缺少必要命令 $cmd" >&2
+    echo "ERROR: required command $cmd not found" >&2
     exit 1
   fi
 done
 
-# ===== 配置（可改）=====
-TOP_N=15                  # Top RAM 大户列前 N 个
-APP_AGG_MIN_RSS_MB=100    # 按 app 聚合时，总 RSS 低于此值不显示
-DUP_PROCESS_MIN_COUNT=2   # 同名进程数 ≥ 此值时报告"重复进程"观察
+# ===== Config (tunable) =====
+TOP_N=15                  # show top N RAM consumers
+APP_AGG_MIN_RSS_MB=100    # hide app aggregates below this MB
+DUP_PROCESS_MIN_COUNT=2   # report "duplicate processes" observation when same-name count >= this
 
-# ===== 基础设施 =====
+# ===== Infrastructure =====
 timestamp="$(date +%Y-%m-%d-%H%M%S)"
 output_dir="$HOME/Downloads"
 output_file="$output_dir/mac-cleanup-memory-$timestamp.md"
 mkdir -p "$output_dir"
 
-# 自适应 page size：Apple Silicon 16K，Intel 4K
+# Adaptive page size: Apple Silicon 16K, Intel 4K
 PAGE_SIZE_BYTES="$(sysctl -n hw.pagesize 2>/dev/null || echo 4096)"
 PAGE_SIZE_KB=$((PAGE_SIZE_BYTES / 1024))
 TOTAL_RAM_BYTES="$(sysctl -n hw.memsize 2>/dev/null || echo 0)"
 TOTAL_RAM_GB=$(awk -v b="$TOTAL_RAM_BYTES" 'BEGIN{printf "%.0f", b/1024/1024/1024}')
 
-# 把 KB 数转成人类可读 (例: 9437184 → "9.0 GB"; 384512 → "375 MB")
+# Convert KB to human-readable (e.g. 9437184 → "9.0 GB"; 384512 → "375 MB")
 humanize_kb() {
   local kb="$1"
   awk -v k="$kb" 'BEGIN{
@@ -40,26 +40,26 @@ humanize_kb() {
   }'
 }
 
-# 给定 process 完整 command，提取它属于的"逻辑 app 组"
-# - 路径含 /XXX.app/  → 取最外层 .app 名（去掉 .app 后缀）
-# - 否则取可执行文件 basename
-# - claude 这种没有 .app 但有多实例的，按 basename 分组
+# Given a full process command, extract the "logical app group" it belongs to.
+# - path contains /XXX.app/  → outermost .app name (without .app suffix)
+# - otherwise → basename of the executable
+# - things like `claude` (no .app but multiple instances) bucket by basename
 get_app_group() {
   local cmd="$1"
-  # 匹配最外层 .app（最浅一层）
+  # Match the outermost (shallowest) .app
   local app_part
   app_part="$(echo "$cmd" | grep -oE '/[^/]+\.app/' | head -1 | sed 's|^/||;s|\.app/$||')"
   if [ -n "$app_part" ]; then
     echo "$app_part"
     return
   fi
-  # 没有 .app，取第一个 token 的 basename
+  # No .app, take basename of the first token
   local first
   first="$(echo "$cmd" | awk '{print $1}')"
   basename "$first" 2>/dev/null || echo "?"
 }
 
-# 命令摘要（去敏 + 截断）
+# Sanitize command (remove secrets + truncate)
 sanitize_cmd() {
   sed -E 's#(://[A-Za-z0-9._-]+):[^@[:space:]]+@#\1:***@#g'
 }
@@ -69,9 +69,9 @@ cmd_summary() {
   echo "$cmd" | sanitize_cmd | cut -c1-90
 }
 
-# ===== 数据采集 =====
+# ===== Data collection =====
 
-# 解析 vm_stat 输出 → 各类页数
+# Parse vm_stat output → page counts per category
 parse_vm_stat() {
   vm_stat | awk -v page_kb="$PAGE_SIZE_KB" '
     /Pages free/                       {free=$3+0}
@@ -84,7 +84,7 @@ parse_vm_stat() {
     /Swapins/                          {si=$2+0}
     /Swapouts/                         {so=$2+0}
     END {
-      # 输出格式: free_kb active_kb inactive_kb wired_kb comp_kb purg_kb spec_kb swap_in swap_out
+      # Output: free_kb active_kb inactive_kb wired_kb comp_kb purg_kb spec_kb swap_in swap_out
       printf "%d %d %d %d %d %d %d %d %d\n",
         free*page_kb, active*page_kb, inactive*page_kb, wired*page_kb,
         comp*page_kb, purg*page_kb, spec*page_kb, si, so
@@ -92,7 +92,7 @@ parse_vm_stat() {
   '
 }
 
-# Swap 总量/已用/剩余 (bytes)，从 sysctl 解析
+# Swap total/used/free (bytes), parsed from sysctl
 parse_swap() {
   # vm.swapusage: total = 4096.00M  used = 2509.81M  free = 1586.19M  (encrypted)
   sysctl -n vm.swapusage 2>/dev/null | awk '
@@ -120,38 +120,38 @@ parse_swap() {
   '
 }
 
-# 内存压力 free percentage (0-100)，取不到返回空
+# Memory pressure free percentage (0-100), empty if not available
 get_pressure_free_pct() {
   memory_pressure 2>/dev/null | awk -F': *' '
     /System-wide memory free percentage/ { gsub(/%/, "", $2); print $2; exit }
   '
 }
 
-# 把 free percentage 映射到 Normal/Warning/Critical
+# Map free percentage to Normal/Warning/Critical
 classify_pressure() {
   local pct="$1"
   [ -z "$pct" ] && { echo "Unknown"; return; }
-  if   [ "$pct" -ge 70 ]; then echo "Normal (健康)"
-  elif [ "$pct" -ge 40 ]; then echo "Normal (有压力)"
+  if   [ "$pct" -ge 70 ]; then echo "Normal (healthy)"
+  elif [ "$pct" -ge 40 ]; then echo "Normal (under pressure)"
   elif [ "$pct" -ge 10 ]; then echo "Warning"
   else                          echo "Critical"
   fi
 }
 
-# 进程分类：识别"用户正在使用"vs"孤儿/可清"
-# 输出 4 种 emoji 标记之一 + 短标签：
-#   🟢 IDE  —— IDE 进程关联（VSCode/Cursor/JetBrains/Xcode）或路径含 IDE 扩展
-#   🟢 TTY  —— 有 controlling terminal（用户在终端 tab 里看着）
-#   🔴 孤儿 —— PPID=1（被 launchd 收养，原父已死）
-#   🟡 新   —— etime < 30 分钟（可能用户刚启动）
-#   —      —— 其它（普通进程）
+# Process classification: identify "actively in use" vs "orphan/cleanable"
+# Outputs one of these emoji markers + short label:
+#   🟢 IDE    — IDE-associated (VSCode/Cursor/JetBrains/Xcode child, or path contains IDE extension)
+#   🟢 TTY    — has a controlling terminal (user is watching it in a terminal tab)
+#   🔴 orphan — PPID=1 (adopted by launchd, original parent died)
+#   🟡 new    — etime < 30 minutes (possibly just started)
+#   —         — other (normal process)
 #
-# 所有数据从单次 ps 全表抓取，避免 N+1 ps 调用
-# 输出: RSS_KB<TAB>PID<TAB>CLASS<TAB>COMMAND（按 RSS 降序）
+# All data is fetched from a single ps dump, avoiding N+1 ps calls.
+# Output: RSS_KB<TAB>PID<TAB>CLASS<TAB>COMMAND (sorted by RSS desc)
 get_top_processes_with_class() {
   local n="$1"
   ps -axo pid=,ppid=,etime=,rss=,tty=,command= 2>/dev/null | awk '
-    # 把 etime 字符串转成总分钟数
+    # Convert etime string to total minutes
     function etime_to_mins(e,    days, rest, n_parts, b, mins) {
       if (e ~ /-/) {
         split(e, a, "-"); days = a[1] + 0; rest = a[2]
@@ -166,36 +166,36 @@ get_top_processes_with_class() {
     }
 
     function classify(idx,    ppid, parent_cmd, total_mins) {
-      # 1. cmd 路径直接含 IDE 扩展（最强信号）
+      # 1. Command path directly contains an IDE extension (strongest signal)
       if (rec_cmd[idx] ~ /vscode\/extensions\/anthropic\.claude-code|\.cursor\/extensions\/anthropic/) return "🟢 IDE"
 
-      # 2. 父进程是 IDE
+      # 2. Parent process is an IDE
       ppid = rec_ppid[idx]
       if (ppid != "1" && ppid != "" && (ppid in pid_to_idx)) {
         parent_cmd = rec_cmd[pid_to_idx[ppid]]
         if (parent_cmd ~ /Visual Studio Code|Code Helper|\/Applications\/Code\.app\/|Cursor|\/Applications\/Cursor\.app\/|JetBrains|IntelliJ|PyCharm|WebStorm|GoLand|RubyMine|CLion|Xcode\.app|\/Applications\/Sublime Text\.app/) return "🟢 IDE"
       }
 
-      # 3. 有 TTY（用户在终端里）
+      # 3. Has a TTY (user is in a terminal)
       if (rec_tty[idx] != "?" && rec_tty[idx] != "??" && rec_tty[idx] != "") return "🟢 TTY"
 
-      # 4. 孤儿（PPID=1 但**排除**正常情况）
-      # GUI .app 由 launchd 启动是正常的；系统服务 /System/Library/、/usr/libexec/、
-      # /Library/Input Methods/ 等 PPID=1 也是正常的。
-      # 真正的孤儿 = "本该有父进程但父进程死了"，主要是 CLI 子进程类型
+      # 4. Orphan (PPID=1 with **exclusions** for normal cases)
+      # GUI .app launched by launchd is normal; system services /System/Library/,
+      # /usr/libexec/, /Library/Input Methods/, etc with PPID=1 are normal too.
+      # A true orphan = "should have a parent but parent died" — mostly CLI child processes.
       if (rec_ppid[idx] == "1") {
         if (rec_cmd[idx] ~ /\.app\//) {
-          # GUI app 走正常路径
+          # GUI app — normal path
         } else if (rec_cmd[idx] ~ /^\/System\/Library\/|^\/usr\/libexec\/|^\/usr\/sbin\/|^\/Library\/Input Methods\/|^\/sbin\//) {
-          # 系统/IME 服务
+          # System / IME service
         } else {
-          return "🔴 孤儿"
+          return "🔴 orphan"
         }
       }
 
-      # 5. 新启动
+      # 5. Recently started
       total_mins = etime_to_mins(rec_etime[idx])
-      if (total_mins < 30) return "🟡 新"
+      if (total_mins < 30) return "🟡 new"
 
       return "—"
     }
@@ -215,7 +215,7 @@ get_top_processes_with_class() {
   ' | sort -t$'\t' -k1 -rn | head -"$n"
 }
 
-# 所有进程：用于按 app 聚合
+# All processes: for aggregation by app
 get_all_processes() {
   ps -axo pid=,rss=,command= 2>/dev/null | awk '{
     pid=$1; rss=$2;
@@ -225,9 +225,9 @@ get_all_processes() {
   }'
 }
 
-# 同 get_top_processes_with_class，但返回所有进程（不截断）
-# 用于"按 app 聚合"和"客观观察"按分类细分
-# 输出: RSS_KB<TAB>PID<TAB>CLASS<TAB>COMMAND
+# Same as get_top_processes_with_class but returns all processes (no truncation).
+# Used for "aggregate by app" and "objective observations" broken down by class.
+# Output: RSS_KB<TAB>PID<TAB>CLASS<TAB>COMMAND
 get_all_with_class() {
   ps -axo pid=,ppid=,etime=,rss=,tty=,command= 2>/dev/null | awk '
     function etime_to_mins(e,    days, rest, n_parts, b, mins) {
@@ -267,7 +267,7 @@ get_all_with_class() {
   '
 }
 
-# ===== 报告渲染 =====
+# ===== Report rendering =====
 
 render_header() {
   local display_time pressure_pct pressure_band
@@ -276,13 +276,13 @@ render_header() {
   pressure_band="$(classify_pressure "$pressure_pct")"
 
   cat <<EOF
-# 🧠 macOS 内存状态扫描报告
+# 🧠 macOS Memory Status Report
 
-**扫描时间**：$display_time
-**总 RAM**：${TOTAL_RAM_GB} GB （page size ${PAGE_SIZE_KB}K）
-**当前压力等级**：${pressure_band}（free percentage: ${pressure_pct:-?}%）
+**Scan time**: $display_time
+**Total RAM**: ${TOTAL_RAM_GB} GB (page size ${PAGE_SIZE_KB}K)
+**Current pressure level**: ${pressure_band} (free percentage: ${pressure_pct:-?}%)
 
-📄 完整结果已保存到 \`$output_file\`
+📄 Full report saved to \`$output_file\`
 
 ---
 
@@ -299,17 +299,17 @@ render_snapshot() {
   read -r total_mb used_mb free_mb <<< "$swap"
 
   cat <<EOF
-## 📊 系统快照
+## 📊 System Snapshot
 
-| 类别 | 大小 | 说明 |
-|------|------|------|
-| **Free** | $(humanize_kb "$free_kb") | 完全空闲 |
-| **Active** | $(humanize_kb "$active_kb") | 正在使用中 |
-| **Inactive** | $(humanize_kb "$inactive_kb") | 最近用过，可被系统回收 |
-| **Wired** | $(humanize_kb "$wired_kb") | 内核固定，不可换出 |
-| **Compressor** | $(humanize_kb "$comp_kb") | 压缩页占用（替代 swap） |
-| **Purgeable** | $(humanize_kb "$purg_kb") | 可立即丢弃 |
-| **Swap 已用** | ${used_mb} MB / ${total_mb} MB | (累计 $so 次 swap-out, $si 次 swap-in) |
+| Category | Size | Notes |
+|----------|------|-------|
+| **Free** | $(humanize_kb "$free_kb") | Completely idle |
+| **Active** | $(humanize_kb "$active_kb") | In active use |
+| **Inactive** | $(humanize_kb "$inactive_kb") | Recently used, reclaimable by the system |
+| **Wired** | $(humanize_kb "$wired_kb") | Kernel-pinned, not swappable |
+| **Compressor** | $(humanize_kb "$comp_kb") | Compressed pages (instead of swap) |
+| **Purgeable** | $(humanize_kb "$purg_kb") | Discardable on demand |
+| **Swap used** | ${used_mb} MB / ${total_mb} MB | (cumulative $so swap-outs, $si swap-ins) |
 
 EOF
 }
@@ -320,16 +320,16 @@ render_pressure_table() {
   current_band="$(classify_pressure "$pct")"
 
   cat <<EOF
-## 🌡️ 压力等级对照表
+## 🌡️ Pressure Level Reference
 
-| Free % | 等级 | 含义 |
-|--------|------|------|
-| > 70% | Normal (健康) | 完全正常 |
-| 40-70% | Normal (有压力) | 系统在边缘工作但稳定 |
-| 10-40% | Warning | 该收拾东西了 |
-| < 10% | Critical | 系统会主动 kill 大户 |
+| Free % | Level | Meaning |
+|--------|-------|---------|
+| > 70% | Normal (healthy) | Fully normal |
+| 40-70% | Normal (under pressure) | System running on the edge but stable |
+| 10-40% | Warning | Time to tidy up |
+| < 10% | Critical | System will actively kill large consumers |
 
-**当前**：${current_band}（${pct:-?}%）
+**Current**: ${current_band} (${pct:-?}%)
 
 EOF
 }
@@ -338,12 +338,12 @@ render_top_processes() {
   local rows
   rows="$(get_top_processes_with_class "$TOP_N")"
   echo ""
-  echo "## 🥇 Top ${TOP_N} RAM 大户（按进程）"
+  echo "## 🥇 Top ${TOP_N} RAM Consumers (by process)"
   echo ""
-  echo "**状态标记**：🟢 IDE = 编辑器/IDE 关联（**正在用，别动**）；🟢 TTY = 在终端 tab 里看着；🟡 新 = 30 分钟内启动；🔴 孤儿 = 父进程已死；— = 普通"
+  echo "**Status markers**: 🟢 IDE = editor/IDE-associated (**in use, don't touch**); 🟢 TTY = visible in a terminal tab; 🟡 new = started within 30 min; 🔴 orphan = parent died; — = normal"
   echo ""
-  echo "| RSS | PID | 状态 | 命令摘要 |"
-  echo "|-----|-----|-----|---------|"
+  echo "| RSS | PID | Status | Command summary |"
+  echo "|-----|-----|--------|-----------------|"
   while IFS=$'\t' read -r rss pid cls cmd; do
     [ -z "$pid" ] && continue
     local rss_human summary
@@ -358,8 +358,9 @@ render_app_aggregation() {
   local all_rows
   all_rows="$(get_all_processes)"
 
-  # 用 awk 聚合：app -> {count, total_rss, pid_list}
-  # 注意：用 index/substr 替代 match() 正则，规避部分 awk 版本对 [^/] 字符类的解析问题
+  # awk aggregation: app -> {count, total_rss, pid_list}
+  # Note: use index/substr instead of match() regex to dodge awk-version differences
+  # with the [^/] character class.
   local agg
   agg="$(echo "$all_rows" | awk -F'\t' -v min_mb="$APP_AGG_MIN_RSS_MB" '
     function get_app(cmd,    pos, before, i, n, parts, first, m, segs) {
@@ -396,20 +397,20 @@ render_app_aggregation() {
     }
   ' | sort -t$'\t' -k1 -rn)"
 
-  echo "## 📦 按 App 聚合（总 RSS ≥ ${APP_AGG_MIN_RSS_MB} MB）"
+  echo "## 📦 Aggregated by App (total RSS >= ${APP_AGG_MIN_RSS_MB} MB)"
   echo ""
   if [ -z "$agg" ]; then
-    echo "（无）"
+    echo "(none)"
     echo ""
     return
   fi
-  echo "| 总 RSS | 进程数 | App | PIDs |"
-  echo "|--------|--------|-----|------|"
+  echo "| Total RSS | Process count | App | PIDs |"
+  echo "|-----------|---------------|-----|------|"
   while IFS=$'\t' read -r total_rss count app pids; do
     [ -z "$app" ] && continue
     local total_human pids_short
     total_human="$(humanize_kb "$total_rss")"
-    # PID 列表过长时截断
+    # Truncate long PID lists
     if [ "$(echo "$pids" | tr ',' '\n' | wc -l)" -gt 6 ]; then
       pids_short="$(echo "$pids" | cut -d',' -f1-6)..."
     else
@@ -420,7 +421,7 @@ render_app_aggregation() {
   echo ""
 }
 
-# 客观观察（不评价）
+# Objective observations (no judgment)
 render_observations() {
   local stats free_kb active_kb inactive_kb wired_kb comp_kb purg_kb spec_kb si so
   stats="$(parse_vm_stat)"
@@ -438,13 +439,13 @@ render_observations() {
   comp_gb=$(awk -v k="$comp_kb" 'BEGIN{printf "%.1f", k/1024/1024}')
   inactive_gb=$(awk -v k="$inactive_kb" 'BEGIN{printf "%.1f", k/1024/1024}')
 
-  echo "## 👀 客观观察"
+  echo "## 👀 Objective Observations"
   echo ""
 
   local has_obs=0
 
-  # 观察 1: 同名进程聚集（按分类拆开 IDE-attached / 其它）
-  # 排除浏览器/Electron 类 app 的 helper 大军（count > 8 是架构性的）
+  # Observation 1: Duplicate-name processes (broken down by class: IDE-attached / others)
+  # Exclude browser/Electron-class apps with helper armies (count > 8 is architectural)
   local dup_lines
   dup_lines="$(get_all_with_class | awk -F'\t' -v min_count="$DUP_PROCESS_MIN_COUNT" '
     function get_app(cmd,    pos, before, i, n, parts, first, m, segs) {
@@ -466,7 +467,7 @@ render_observations() {
       app=get_app(cmd)
       counts[app]++
       total[app]+=rss
-      # 按 class 累加 PID 列表
+      # Accumulate PID list per class
       key=app "::" cls
       if (cls_pids[key] == "") cls_pids[key]=pid; else cls_pids[key]=cls_pids[key] " " pid
       cls_count[key]++
@@ -476,11 +477,11 @@ render_observations() {
     END {
       for (a in counts) {
         if (counts[a] < min_count || counts[a] > 8 || total[a]/1024 < 500) continue
-        # 输出：total_rss, total_count, app, ide_pids, ide_count, tty_pids, tty_count, orphan_pids, orphan_count, new_pids, new_count, other_pids, other_count
+        # Output: total_rss, total_count, app, ide_pids, ide_count, tty_pids, tty_count, orphan_pids, orphan_count, new_pids, new_count, other_pids, other_count
         printf "%d\t%d\t%s", total[a], counts[a], a
-        for (cls in classes_arr) delete classes_arr[cls]  # awk 兼容性
+        for (cls in classes_arr) delete classes_arr[cls]  # awk compatibility
         for (cls_name in c) delete c[cls_name]
-        # 按固定顺序列出每个类的 PID 列表
+        # Emit each class PID list in a fixed order
         printf "\t%s\t%d", (cls_pids[a "::IDE"] ? cls_pids[a "::IDE"] : "-"), (cls_count[a "::IDE"]+0)
         printf "\t%s\t%d", (cls_pids[a "::TTY"] ? cls_pids[a "::TTY"] : "-"), (cls_count[a "::TTY"]+0)
         printf "\t%s\t%d", (cls_pids[a "::NEW"] ? cls_pids[a "::NEW"] : "-"), (cls_count[a "::NEW"]+0)
@@ -496,44 +497,44 @@ render_observations() {
       [ -z "$app" ] && continue
       local total_human
       total_human="$(humanize_kb "$total_rss")"
-      printf -- "- 检测到 **%d 个 \`%s\`** 实例，合计 %s\n" "$count" "$app" "$total_human"
-      [ "$ide_n" -gt 0 ] && printf -- "    - 🟢 **IDE-attached（正在用，别动）**：%d 个 → PID %s\n" "$ide_n" "$ide_pids"
-      [ "$tty_n" -gt 0 ] && printf -- "    - 🟢 **TTY-attached（在终端里）**：%d 个 → PID %s\n" "$tty_n" "$tty_pids"
-      [ "$new_n" -gt 0 ] && printf -- "    - 🟡 30 分钟内启动：%d 个 → PID %s\n" "$new_n" "$new_pids"
-      [ "$orphan_n" -gt 0 ] && printf -- "    - 🔴 **孤儿（可清）**：%d 个 → PID %s\n" "$orphan_n" "$orphan_pids"
-      [ "$other_n" -gt 0 ] && printf -- "    - — 其它：%d 个 → PID %s\n" "$other_n" "$other_pids"
+      printf -- "- Detected **%d \`%s\`** instances, total %s\n" "$count" "$app" "$total_human"
+      [ "$ide_n" -gt 0 ] && printf -- "    - 🟢 **IDE-attached (in use, don't touch)**: %d → PID %s\n" "$ide_n" "$ide_pids"
+      [ "$tty_n" -gt 0 ] && printf -- "    - 🟢 **TTY-attached (in a terminal)**: %d → PID %s\n" "$tty_n" "$tty_pids"
+      [ "$new_n" -gt 0 ] && printf -- "    - 🟡 started within 30 min: %d → PID %s\n" "$new_n" "$new_pids"
+      [ "$orphan_n" -gt 0 ] && printf -- "    - 🔴 **orphan (cleanable)**: %d → PID %s\n" "$orphan_n" "$orphan_pids"
+      [ "$other_n" -gt 0 ] && printf -- "    - — other: %d → PID %s\n" "$other_n" "$other_pids"
       has_obs=1
     done <<< "$dup_lines"
   fi
 
-  # 观察 2: Inactive 可回收
+  # Observation 2: Inactive reclaimable
   if awk -v g="$inactive_gb" 'BEGIN{exit !(g >= 2.0)}'; then
-    echo "- Inactive **${inactive_gb} GB** 可通过 \`sudo purge\` 立即归还系统（治标不治本）"
+    echo "- Inactive **${inactive_gb} GB** can be returned to the system immediately via \`sudo purge\` (symptomatic relief, not a cure)"
     has_obs=1
   fi
 
-  # 观察 3: Compressor 体积
+  # Observation 3: Compressor footprint
   local comp_pct
   comp_pct=$(awk -v c="$comp_kb" -v t="$TOTAL_RAM_BYTES" 'BEGIN{printf "%.0f", c*1024*100/t}')
   if [ "$comp_pct" -ge 20 ]; then
-    echo "- Compressor 占 **${comp_pct}%** 内存（${comp_gb} GB），系统在压缩内存避免 swap，已经在边缘工作"
+    echo "- Compressor occupies **${comp_pct}%** of memory (${comp_gb} GB); the system is compressing memory to avoid swap and is already running on the edge"
     has_obs=1
   fi
 
-  # 观察 4: Swap 接近上限
+  # Observation 4: Swap near limit
   if [ "$swap_used_pct" -ge 50 ]; then
-    echo "- Swap 已用 **${swap_used_pct}%**（${used_mb} / ${total_mb} MB），再涨会进 Warning"
+    echo "- Swap is **${swap_used_pct}%** used (${used_mb} / ${total_mb} MB); further growth will push pressure into Warning"
     has_obs=1
   fi
 
-  # 观察 5: 累计 swap 活动
+  # Observation 5: Cumulative swap activity
   if [ "$so" -ge 100000 ]; then
-    echo "- 累计 swap-out **${so}** 次（自上次重启），说明系统持续在 swap 数据"
+    echo "- Cumulative swap-outs: **${so}** (since last reboot), indicating the system has been swapping data continuously"
     has_obs=1
   fi
 
   if [ "$has_obs" -eq 0 ]; then
-    echo "（无明显问题）"
+    echo "(no obvious issues)"
   fi
   echo ""
 }
@@ -542,18 +543,18 @@ render_action_hint() {
   cat <<'EOF'
 ---
 
-## 📋 操作提示
+## 📋 Next-Step Hints
 
-- **决定要杀的进程后**，回复 `kill <PID>` 或 `kill <PID1> <PID2>`
-- ⚠️ **标 🟢 的进程是你正在使用的（IDE/终端关联）**，要杀必须**明确单独说出这个 PID**，不接受"全杀"/"杀那 N 个"等模糊指令
-- 🔴 标记的孤儿进程是清理优先目标
-- **想立即回收 inactive 内存**：回复"执行 purge"或自己跑 `sudo purge`
-- 我执行 kill 前会再次校验 PID 当前命令是否还匹配（防 PID 重用），
-  先发 SIGTERM 等 3 秒再升级 SIGKILL，绝不动系统进程和当前 claude 会话
+- **Once you've decided which to kill**, reply `kill <PID>` or `kill <PID1> <PID2>`
+- ⚠️ **Processes marked 🟢 are ones you're actively using (IDE/terminal-associated)**. To kill one, you must **state that specific PID explicitly** — vague instructions like "kill them all" / "kill those N" are not accepted
+- 🔴 orphan processes are top priority for cleanup
+- **To reclaim inactive memory immediately**: reply "run purge" or run `sudo purge` yourself
+- Before executing a kill, I'll re-verify that the PID's current command still matches (PID-reuse guard),
+  send SIGTERM first and wait 3 seconds before escalating to SIGKILL, and never touch system processes or the current claude session
 EOF
 }
 
-# ===== 主流程 =====
+# ===== Main flow =====
 render_report() {
   render_header
   render_snapshot

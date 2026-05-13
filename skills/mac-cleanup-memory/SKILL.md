@@ -1,194 +1,194 @@
 ---
 name: mac-cleanup-memory
-description: 扫描 macOS 内存全景：系统快照（Free/Active/Inactive/Wired/Compressor/Swap）+ 压力等级 + Top RAM 大户（按 PID 和按 App 聚合）+ 客观观察（多个同名进程、可回收 inactive、swap 趋势等）。触发词：内存检查、看内存、查内存、谁占内存、内存压力、内存紧张、压缩器多大、check memory、memory pressure、ram usage、who is using memory、内存高、扫内存。skill 本身不 kill 任何进程，只做诊断。用户明示 PID 后才执行严格校验的 kill（PID 重用防护、TERM→KILL 升级、系统进程黑名单、双重确认）。姊妹 skill：mac-cleanup-process（异常/卡死进程）、mac-cleanup-disk（磁盘清理）。
+description: Scan the macOS memory landscape — system snapshot (Free/Active/Inactive/Wired/Compressor/Swap) + pressure level + top RAM consumers (aggregated by PID and by App) + objective observations (duplicate-name processes, reclaimable inactive, swap trends, etc.). Trigger words "check memory", "memory pressure", "ram usage", "who is using memory", "memory high", "scan memory", "内存检查", "看内存", "查内存", "谁占内存", "内存压力", "内存紧张", "压缩器多大", "内存高", "扫内存". The skill itself never kills any process — it is diagnostic only. Kill only happens after the user names specific PIDs, and with strict validation (PID reuse protection, TERM→KILL escalation, system-process blacklist, double confirmation). Sister skills mac-cleanup-process (abnormal/stuck processes) and mac-cleanup-disk (disk cleanup).
 ---
 
 # mac-cleanup-memory
 
-诊断 macOS 内存状态的 skill，**纯诊断模式**。绝不主动 kill 任何进程。
+A skill for diagnosing macOS memory state — **diagnostic-only mode**. Never proactively kills any process.
 
-## 触发后的执行流程
+## Execution Flow After Trigger
 
-### 步骤 1：执行扫描脚本
+### Step 1: Run the scan script
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scan.sh"
 ```
 
-脚本会：
-- stdout 输出完整 Markdown 报告
-- tee 到 `~/Downloads/mac-cleanup-memory-<timestamp>.md`
-- 成功 exit 0；失败 exit 1 并把诊断写到 stderr
+The script:
+- Prints a full Markdown report to stdout
+- Tees it to `~/Downloads/mac-cleanup-memory-<timestamp>.md`
+- Exits 0 on success, 1 on failure with diagnostics written to stderr
 
-### 步骤 2：呈现报告
+### Step 2: Present the report
 
-**直接把 stdout 的 Markdown 内容原样贴给用户。** 允许在末尾补一两句观察（点出最值得注意的项），但：
+**Paste the stdout Markdown content to the user verbatim.** You may add one or two observations at the end pointing out the most notable items, but:
 
-- **严禁** 修改/伪造/遗漏报告里的数字（RSS、PID、压力等级）
-- **严禁** 自己用 `ps aux | grep` 补充脚本没扫到的候选
-- **严禁** 在报告里加"建议 kill 哪些"——这是用户的决定
+- **Never** modify / fabricate / omit any numbers in the report (RSS, PID, pressure level)
+- **Never** add candidates from your own `ps aux | grep` that the script didn't surface
+- **Never** add "I suggest killing X" to the report — that's the user's call
 
-### 步骤 3：等待用户指令
+### Step 3: Wait for user instruction
 
-| 用户回复 | 处理 |
-|---------|------|
-| 不回复 / "好" / "知道了" | 什么都不做 |
-| `kill <PID>` 或 `kill <PID1> <PID2>` | 走【Kill 安全协议】，逐个执行 |
-| `执行 purge` / `跑 purge` | 执行 `sudo purge`（用户自己输密码）|
-| `kill all WeChat` / `把微信全杀了` | **必须**先列出所有 PID + 命令让用户确认，不能直接 `pkill`/`killall` |
-| `全部清理` / 模糊指令 | 反问"具体杀哪几个 PID？" |
+| User reply | Action |
+|------------|--------|
+| No reply / "ok" / "got it" | Do nothing |
+| `kill <PID>` or `kill <PID1> <PID2>` | Follow the [Kill Safety Protocol], one PID at a time |
+| "run purge" / "执行 purge" | Run `sudo purge` (user enters their own password) |
+| "kill all WeChat" / "把微信全杀了" | **Must** list every PID + command for confirmation first — never use `pkill`/`killall` directly |
+| "clean up everything" / vague instruction | Ask back: "Which specific PIDs?" |
 
 ---
 
-## 🛡️ Kill 安全协议（核心，加粗）
+## 🛡️ Kill Safety Protocol (core, bolded)
 
-每次执行 kill 前**逐 PID** 走完所有步骤。任何一步失败就 abort 这个 PID（不影响其它 PID）。
+For each kill, walk through all the steps **one PID at a time**. If any step fails, abort that PID (other PIDs are unaffected).
 
-### 0. 活跃 session 强保护（最高优先级，2026-05-13 加）
+### 0. Active session strong protection (highest priority, added 2026-05-13)
 
-`scan.sh` 输出的报告里，每个进程都带状态标记：
-- 🟢 **IDE** —— IDE/编辑器关联（VSCode/Cursor/JetBrains/Xcode/Sublime 子进程，或路径含 `vscode/extensions/anthropic.claude-code`）
-- 🟢 **TTY** —— 有 controlling terminal（用户在终端 tab 里看着）
-- 🟡 **新** —— etime < 30 分钟
-- 🔴 **孤儿** —— 真·僵尸（PPID=1 的 CLI 子进程类）
-- — —— 普通
+Each process in the `scan.sh` report carries a status tag:
+- 🟢 **IDE** — IDE/editor associated (VSCode/Cursor/JetBrains/Xcode/Sublime child process, or path contains `vscode/extensions/anthropic.claude-code`)
+- 🟢 **TTY** — has a controlling terminal (the user is watching it in a terminal tab)
+- 🟡 **new** — etime < 30 minutes
+- 🔴 **orphan** — true zombie (CLI child class with PPID=1)
+- — — normal
 
-**铁律**：任何带 🟢 标记的 PID（IDE/TTY），用户说杀必须**让用户明确单独说出这个 PID 数字**才能动手。不接受这些模糊指令：
+**Hard rule**: for any PID tagged 🟢 (IDE/TTY), you may only act after the user **explicitly states that PID number by itself**. The following vague instructions do NOT count:
 
-- ❌ "杀那几个 claude"
-- ❌ "全杀"
-- ❌ "杀掉 3 个"（即使前面列过 PID）
-- ❌ "yes" / "确认" / "go"
-- ❌ "把建议的都杀了"
+- ❌ "kill those claude ones"
+- ❌ "kill them all"
+- ❌ "kill the 3" (even if PIDs were listed above)
+- ❌ "yes" / "confirm" / "go"
+- ❌ "kill all the recommended ones"
 
-**正确做法**：发现待杀名单里有 🟢 标记的 PID，单独 echo：
+**Correct behavior**: if any 🟢-tagged PID is on the kill list, echo it separately:
 
 ```
-⚠️ PID 84807 是 🟢 IDE（VSCode claude，正在用）。如果真要杀，请单独输入：
+⚠️ PID 84807 is 🟢 IDE (VSCode claude, currently in use). To kill it, please type explicitly:
    kill 84807
-其它 🔴 / — 标记的 PID 我可以按你的批量指令处理。
+Other 🔴 / — tagged PIDs I can handle per your batch instruction.
 ```
 
-**真孤儿（🔴）才允许批量**：用户说"杀所有孤儿"或"清掉 🔴"，可以批量执行（这些定义上就是死掉的进程残留）。
+**True orphans (🔴) may be batched**: if the user says "kill all orphans" or "clear the 🔴 ones", batch is allowed (by definition these are dead remnants).
 
-**反例（2026-05-13 事故）**：把 PPID=VSCode、etime=11 分钟、19 个活子进程的 `claude` 和真·孤儿 claude 一起列为"3 个旧 claude"建议杀，用户回"杀掉3个"就动手了 → 中断用户正在干的活。
-**根因**：当时 scan.sh 还没分类标记，靠 Claude 在文本里识别 `vscode/extensions/` 关键字，但建议时没单独 highlight。**修复**：scan.sh 现在直接输出 🟢 标签，本规则要求看到 🟢 必须强制单 PID 确认。
+**Counter-example (2026-05-13 incident)**: a `claude` process with PPID=VSCode, etime=11 minutes, 19 live children was listed alongside true orphan `claude` as "3 old claude processes" with a kill suggestion. The user replied "kill the 3" and the action ran → interrupted work the user was actively doing.
+**Root cause**: scan.sh did not yet emit classification tags; Claude was reading `vscode/extensions/` from raw text, but the suggestion didn't single it out. **Fix**: scan.sh now emits the 🟢 tag directly, and this rule mandates that any 🟢 entry requires explicit single-PID confirmation.
 
-### 1. 黑名单硬拒
+### 1. Blacklist hard reject
 
-以下 PID **绝不杀**，即使用户明示。回反问"你确认要杀 X 吗？如果真要请手动在终端跑"：
+The following PIDs are **never killed**, even on explicit user request. Push back with "Are you sure about X? If you really want this, run it manually in your terminal":
 
 - PID 1 (launchd)
-- 命令含 `kernel_task` / `WindowServer` / `loginwindow` / `launchd` / `mds` / `mds_stores`
-- 当前 claude 会话 PID（用 `find_current_claude_pid` 逻辑，参考 mac-cleanup-process/scan.sh）
+- Commands containing `kernel_task` / `WindowServer` / `loginwindow` / `launchd` / `mds` / `mds_stores`
+- The current claude session PID (use the `find_current_claude_pid` logic, see mac-cleanup-process/scan.sh)
 
-### 2. PID 重用校验（防误伤）
+### 2. PID reuse validation (avoid friendly fire)
 
 ```bash
-# 用户说要杀 PID X，扫描时记录的命令是 RECORDED_CMD
+# User asked to kill PID X. RECORDED_CMD is what scan.sh saw.
 CURRENT_CMD="$(ps -p X -o command= 2>/dev/null)"
 ```
 
-- 如果 `CURRENT_CMD` 为空：PID 已退出，汇报"PID X 已退出（可能被其它操作带走）"，跳过
-- 如果 `CURRENT_CMD` 和扫描时记录的**不一致**（用 substring 校验，不要求完全相同——参数可能微变）：abort + 警告"PID X 已被新进程复用，当前是 `<新命令>`，已 abort"
+- If `CURRENT_CMD` is empty: PID has already exited. Report "PID X has exited (possibly by another action)" and skip.
+- If `CURRENT_CMD` does **not** match the recorded command (use substring check, not strict equality — args can drift): abort + warn "PID X has been reused by a new process, currently `<new command>`, aborted."
 
-### 3. 系统 UI 二次确认
+### 3. System-UI second confirmation
 
-如果命令路径含以下任一，**额外问一次**确认（即使不在硬黑名单）：
+If the command path contains any of the following, ask for **one extra** confirmation (even if not on the hard blacklist):
 
-- `/System/Library/CoreServices/` → 系统服务
-- `Finder.app` / `Dock.app` / `SystemUIServer.app` / `ControlCenter.app` → 桌面 UI（杀了能恢复，但用户 UI 会闪一下）
-- `coreaudiod` / `bluetoothd` / `WiFiAgent` → 系统守护
+- `/System/Library/CoreServices/` → system service
+- `Finder.app` / `Dock.app` / `SystemUIServer.app` / `ControlCenter.app` → desktop UI (recoverable, but the user's UI will flicker)
+- `coreaudiod` / `bluetoothd` / `WiFiAgent` → system daemons
 
 ```
-"PID X 是 <App>，杀掉会让 <UI 行为> 短暂中断（系统会自动重启它）。继续吗？回 yes/no"
+"PID X is <App>. Killing will briefly interrupt <UI behavior> (the system will auto-restart it). Continue? Reply yes/no."
 ```
 
-### 4. SIGTERM 优先，3 秒后才 SIGKILL
+### 4. SIGTERM first, SIGKILL only after 3 seconds
 
 ```bash
 kill <PID>           # SIGTERM
 sleep 3
 if ps -p <PID> >/dev/null 2>&1; then
-  echo "PID X 未响应 SIGTERM，升级 SIGKILL"
+  echo "PID X did not respond to SIGTERM, escalating to SIGKILL"
   kill -9 <PID>
   sleep 1
 fi
-ps -p <PID> >/dev/null 2>&1 && echo "⚠️ PID X 仍存活" || echo "✅ PID X 已退出"
+ps -p <PID> >/dev/null 2>&1 && echo "⚠️ PID X still alive" || echo "✅ PID X has exited"
 ```
 
-理由：SIGTERM 给 app 机会保存数据；SIGKILL 是最后手段。微信/VSCode/Chrome 都有未保存状态。
+Reason: SIGTERM gives the app a chance to save state; SIGKILL is the last resort. WeChat / VSCode / Chrome all have unsaved state.
 
-### 5. 批量 kill 必须逐条 echo + 最终确认
+### 5. Batch kill must echo each entry + final confirmation
 
-如果用户一次说多个 PID，先打印一次确认表再动手：
+If the user names multiple PIDs at once, print a confirmation table before acting:
 
 ```
-你要 kill 的进程：
+Processes to kill:
   PID 50484 → claude (RSS 500 MB)
   PID 74039 → claude -c (RSS 504 MB)
-共 2 个，回 confirm 执行，回 cancel 取消。
+2 total. Reply `confirm` to execute, `cancel` to abort.
 ```
 
-收到 `confirm` 才执行。任何其它回复都视为 cancel。
+Execute only on `confirm`. Anything else counts as cancel.
 
-### 6. 永远不用 pkill / killall / pkill -f
+### 6. Never use pkill / killall / pkill -f
 
 ```bash
-# ❌ 永远禁止
-pkill -f "WeChat"        # 会匹到 WeChatAppEx, WeChatHelper, 任何路径含 WeChat 的进程
-killall WeChat           # 同上
-pkill -9 chrome          # 同上
+# ❌ Never allowed
+pkill -f "WeChat"        # matches WeChatAppEx, WeChatHelper, any path with WeChat
+killall WeChat           # same problem
+pkill -9 chrome          # same problem
 
-# ✅ 只允许
-kill <具体 PID>
-kill -9 <具体 PID>       # 仅 SIGTERM 3 秒后未响应才升级
+# ✅ Allowed
+kill <specific PID>
+kill -9 <specific PID>   # only after SIGTERM + 3s no response
 ```
 
-如果用户说"杀掉所有微信进程"：先用扫描数据列出每个 WeChat 相关 PID（或重新扫一次），让用户**逐个确认**或全选 confirm。
+If the user says "kill all WeChat processes": first use scan data to list every WeChat-related PID (or rescan), then ask the user to **confirm each one** or confirm all.
 
-### 7. 操作落 audit log
+### 7. Audit log every action
 
-每次实际执行 kill 后追加到 `~/Downloads/mac-cleanup-memory-killed-<date>.log`：
+After each actual kill, append to `~/Downloads/mac-cleanup-memory-killed-<date>.log`:
 
 ```
 2026-05-13T13:55:32  PID=50484  CMD="claude"  RSS=500MB  signal=TERM  result=exited
 2026-05-13T13:55:36  PID=74039  CMD="claude -c"  RSS=504MB  signal=TERM→KILL  result=exited
 ```
 
-出问题能追溯。
+So issues are traceable.
 
 ---
 
-## 步骤 4：执行 purge
+## Step 4: Run purge
 
-如果用户说"跑 purge" / "执行 purge"：
+If the user says "run purge" / "execute purge":
 
 ```bash
 sudo purge
 ```
 
-注意：
-- 这会让用户在终端被询问密码（`sudo` 弹密码框，由 macOS 自己处理）
-- 跑完不要假装"释放了 X GB"——`purge` 不报告释放量。如果要看效果，跑前后各一次 `vm_stat | head -5`
-- `purge` 只是让 inactive 立即归还，**没有副作用**（缓存会按需重建，下次访问稍慢一点点而已）
+Notes:
+- This prompts for the user's password in the terminal (`sudo` password prompt, handled by macOS itself)
+- After it runs, do not pretend "freed X GB" — `purge` doesn't report a freed amount. To see the effect, run `vm_stat | head -5` before and after.
+- `purge` just immediately returns inactive memory; **no side effects** (caches rebuild on demand, slightly slower next access).
 
-## 步骤 5：错误处理
+## Step 5: Error handling
 
-| 情况 | 处理 |
-|------|------|
-| `scan.sh` exit 1 | 把 stderr 原文贴给用户，不自己用 ps 补救 |
-| `kill` 权限不足（`kill: <PID>: Operation not permitted`）| 通常是受 SIP 保护的系统进程。建议跑 `sudo kill`，但**不**代跑 sudo |
-| `Downloads` 写入失败 | 报告输出到对话照常，警告"本次未落盘：<原因>" |
-| 用户说要杀的 PID 不存在 | 汇报"PID X 不存在"，继续处理其它 PID |
+| Situation | Action |
+|-----------|--------|
+| `scan.sh` exits 1 | Paste the stderr text verbatim to the user, don't try to patch with your own ps |
+| `kill` denied (`kill: <PID>: Operation not permitted`) | Usually a SIP-protected system process. Suggest `sudo kill`, but **don't** sudo on the user's behalf |
+| `Downloads` write fails | Report to the conversation as usual, warn "Not persisted this run: <reason>" |
+| PID the user asked to kill doesn't exist | Report "PID X not found", continue with other PIDs |
 
-## 关联文件
+## Related files
 
-- `scan.sh` — 扫描核心
-- `README.md` — 用户文档（阈值/黑名单/输出位置）
-- `DESIGN.md` — 设计文档（决策与权衡）
+- `scan.sh` — scan engine
+- `README.md` — user docs (thresholds / blacklist / output location)
+- `DESIGN.md` — design doc (decisions and tradeoffs)
 
-## 姊妹 skill
+## Sister skills
 
-- **mac-cleanup-process** — 找异常/卡死进程（孤儿、超龄、僵尸）。本 skill 看的是"谁占内存"，process skill 看的是"谁不该活着"
-- **mac-cleanup-disk** — 磁盘缓存清理。本 skill 不动磁盘
+- **mac-cleanup-process** — finds abnormal / stuck processes (orphans, over-aged, zombies). This skill answers "who is using memory", the process skill answers "who shouldn't be alive"
+- **mac-cleanup-disk** — disk cache cleanup. This skill doesn't touch disk.

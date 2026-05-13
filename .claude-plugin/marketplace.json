@@ -5,15 +5,15 @@
     "name": "lifedever"
   },
   "metadata": {
-    "description": "lifedever's curated Claude Code skills — macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
-    "version": "0.1.1"
+    "description": "lifedever's curated Claude Code skills \u2014 macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
+    "version": "0.1.4"
   },
   "plugins": [
     {
       "name": "lifedever",
       "source": "./",
-      "description": "lifedever's curated Claude Code skills — macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
-      "version": "0.1.3",
+      "description": "lifedever's curated Claude Code skills \u2014 macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
+      "version": "0.1.4",
       "author": {
         "name": "lifedever"
       },

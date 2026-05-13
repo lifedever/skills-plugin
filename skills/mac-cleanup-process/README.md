@@ -1,64 +1,64 @@
 # mac-cleanup-process
 
-macOS 僵尸/卡死进程扫描 skill。**只诊断，不 kill**。
+macOS zombie / stuck process scan skill. **Diagnosis only, never kills.**
 
-姊妹 skill：[mac-cleanup-disk](../mac-cleanup-disk/SKILL.md) 负责磁盘清理。本 skill 只看进程。
+Sister skill: [mac-cleanup-disk](../mac-cleanup-disk/SKILL.md) handles disk cleanup. This skill only looks at processes.
 
-## 使用
+## Usage
 
-**在 Claude Code 里：** 说"扫一下僵尸"、"清理僵尸进程"、"系统卡"等中英文触发词，skill 会自动触发。
+**In Claude Code:** say "scan zombies", "cleanup zombies", "system is slow", or any Chinese/English trigger phrase and the skill auto-triggers.
 
-**直接跑脚本（绕过 Claude Code）：** 先用 `find` 定位 plugin 缓存中的脚本路径（版本号会变）：
+**Run the script directly (bypassing Claude Code):** locate the script in the plugin cache (version numbers shift) with `find`:
 
 ```bash
 bash "$(find ~/.claude/plugins/cache -name scan.sh -path '*mac-cleanup-process*' 2>/dev/null | sort | tail -1)"
 ```
 
-完整报告会同时：
-- 输出到 stdout
-- 保存到 `~/Downloads/mac-cleanup-process-<timestamp>.md`
+The full report is both:
+- Printed to stdout
+- Saved to `~/Downloads/mac-cleanup-process-<timestamp>.md`
 
-## 调整扫描阈值
+## Tuning Scan Thresholds
 
-打开 `scan.sh`，修改顶部常量：
+Open `scan.sh` and edit the top-of-file constants:
 
 ```bash
-OLD_CLAUDE_HOURS=24       # 老 claude 会话阈值（小时）
-OLD_DEV_SERVER_DAYS=2     # 长期 dev server 阈值（天）
-OLD_SHELL_TAB_DAYS=3      # 长寿命终端 tab 阈值（天，匹配任何 macOS 终端）
-BIG_MEM_RSS_MB=500        # 大内存候选的 RSS 门槛（MB）
-BIG_MEM_DAYS=3            # 大内存候选的 etime 门槛（天）
+OLD_CLAUDE_HOURS=24       # threshold for old claude session (hours)
+OLD_DEV_SERVER_DAYS=2     # threshold for long-running dev server (days)
+OLD_SHELL_TAB_DAYS=3      # threshold for long-lived terminal tab (days, matches any macOS terminal)
+BIG_MEM_RSS_MB=500        # RSS bar for large-memory candidates (MB)
+BIG_MEM_DAYS=3            # etime bar for large-memory candidates (days)
 ```
 
-改完直接生效，不需要重启任何东西。
+Takes effect immediately, no restart needed.
 
-## 扩展 MCP server 识别规则
+## Extending MCP Server Detection
 
-如果使用新的 MCP server，在 `scan.sh` 里找到 `MCP_PATTERN`，把新特征加到正则里：
+If you use a new MCP server, find `MCP_PATTERN` in `scan.sh` and add the new signature to the regex:
 
 ```bash
 readonly MCP_PATTERN='(npm exec.*mcp|mcp-server-|@playwright/mcp|...|your-new-mcp-pattern)'
 ```
 
-## 落盘文件清理
+## Cleaning Up Persisted Files
 
-`~/Downloads/mac-cleanup-process-*.md` 每次扫描都会新增一份。定期清理：
+`~/Downloads/mac-cleanup-process-*.md` accumulates one file per scan. Clean periodically:
 
 ```bash
-# 比如清理 7 天前的
+# e.g. delete files older than 7 days
 find ~/Downloads -name 'mac-cleanup-process-*.md' -mtime +7 -delete
 ```
 
-## 依赖
+## Dependencies
 
-纯 macOS 自带工具：`ps`、`pgrep`、`awk`、`sed`、`lsof`、`vm_stat`、`sysctl`、`top`。
-**零外部依赖**，不需要 `jq` / `brew install` 任何东西。
+Pure macOS built-ins: `ps`, `pgrep`, `awk`, `sed`, `lsof`, `vm_stat`, `sysctl`, `top`.
+**Zero external dependencies** — no `jq`, no `brew install` of anything.
 
-## 设计与实施
+## Design and Implementation
 
-- `DESIGN.md` — 完整设计文档（背景、规则、边界情况、演进预留）
-- `SKILL.md` — skill 入口（触发词 + Claude 交互流程指引）
+- `DESIGN.md` — full design doc (background, rules, edge cases, future-proofing)
+- `SKILL.md` — skill entry point (trigger words + Claude interaction guide)
 
-## Bash 坑记录
+## Bash Gotchas
 
-- **CJK 标点紧邻变量引用**：`$var）`、`$var，` 等会让 bash 把中文字节当变量名延续，导致 `set -u` 下报 "unbound variable"。修复：用 `${var}` 显式界定（`${var}）`）。
+- **CJK punctuation directly adjacent to a variable reference**: things like `$var）`, `$var，` make bash treat the Chinese bytes as a continuation of the variable name, causing "unbound variable" under `set -u`. Fix: use `${var}` to explicitly delimit (e.g. `${var}）`).
