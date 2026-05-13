@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=Latest" alt="Latest"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/skills-9-7C3AED?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/skills-10-7C3AED?style=flat-square" alt="Skills">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -27,9 +27,9 @@
 
 ## Highlights
 
-- **Eight curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, memory / disk / process diagnostics, and parallel localization
+- **Ten curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, memory / disk / process diagnostics, parallel localization, and npm supply-chain checks
 - **macOS-dev focused** — most skills target the everyday macOS workflow
-- **One command to install all eight** and they auto-update via the Claude Code plugin marketplace
+- **One command to install all ten** and they auto-update via the Claude Code plugin marketplace
 - **Namespaced** under `/lifedever:<skill>` so they never collide with other plugins
 
 ## Skills included
@@ -45,6 +45,7 @@
 | ♻️ | `mac-cleanup-process` | Scan macOS for zombie / stuck processes (MCP server orphans, stale dev servers, long-lived Claude sessions, etc.) and suggest kill commands. Pure diagnostic. |
 | 🍎 | `macos-app-scaffold` | Generate a production-ready native macOS app scaffold (SwiftUI + SwiftData + SPM) with auto-update, dev/release build scripts, localization, and menu-bar persistence. |
 | 🖼️ | `image-upload` | Upload images to your own GitHub repo, get jsDelivr CDN / GitHub raw / Markdown URLs back. Supports file paths, batch, and clipboard. Requires one-time env var setup — see [SKILL.md](./skills/image-upload/SKILL.md). |
+| 🛡️ | `npm-safety` | Vet npm / yarn / pnpm packages with [socket.dev](https://socket.dev) before they hit your project. Auto-detects your package manager and uses it for the actual install — the safety check is the wrapper, not the installer. Requires one-time `socket` CLI + API token setup — see [SKILL.md](./skills/npm-safety/SKILL.md). |
 
 ## Prerequisites per Skill
 
@@ -53,6 +54,7 @@ Most skills run as-is. A few need a one-time setup or an extra tool — install 
 | Skill | Requirement | How |
 |---|---|---|
 | `image-upload` | **`IMAGE_HOST_REPO` env var** + `gh` CLI authenticated | `echo 'export IMAGE_HOST_REPO="<your-gh-user>/images"' >> ~/.zshrc && source ~/.zshrc && gh auth login` |
+| `npm-safety` | `socket` CLI + **`SOCKET_CLI_API_TOKEN` env var** | `npm install -g socket@latest && echo 'export SOCKET_CLI_API_TOKEN="<your-token>"' >> ~/.zshrc && source ~/.zshrc` (get token at [socket.dev](https://socket.dev/)) |
 | `mac-cleanup-disk` | [`tw93/mole`](https://github.com/tw93/mole) CLI | `brew install mole` |
 | `app-icon-generator` | `librsvg` (required) + `Pillow` (optional, for `.ico`) | `brew install librsvg && pip3 install Pillow` |
 | `macos-app-scaffold` | Xcode ≥ 16 (Swift 6.0 toolchain) | Install via App Store / Xcode releases |

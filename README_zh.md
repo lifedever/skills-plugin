@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC" alt="最新版本"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-9-7C3AED?style=flat-square" alt="技能数">
+  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-10-7C3AED?style=flat-square" alt="技能数">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -27,9 +27,9 @@
 
 ## 亮点
 
-- **8 个精选 skill**，作者日常都在用——Swift 应用脚手架、图标生成、运行时调试、内存 / 磁盘 / 进程诊断、多语言并行同步
+- **10 个精选 skill**，作者日常都在用——Swift 应用脚手架、图标生成、运行时调试、内存 / 磁盘 / 进程诊断、多语言并行同步、npm 供应链安全检查
 - **专注 macOS 开发场景**，覆盖日常高频工作流
-- **一条命令装齐全部 8 个**，通过 Claude Code plugin marketplace 自动更新
+- **一条命令装齐全部 10 个**，通过 Claude Code plugin marketplace 自动更新
 - **统一命名空间** `/lifedever:<skill>`，不会和其他 plugin 撞名
 
 ## 包含的技能
@@ -45,6 +45,7 @@
 | ♻️ | `mac-cleanup-process` | 扫描 macOS 僵尸 / 卡死进程（MCP server 孤儿、过期 dev server、老 Claude 会话等），给出建议的 kill 命令。**纯诊断**。 |
 | 🍎 | `macos-app-scaffold` | 生成生产级原生 macOS 应用脚手架（SwiftUI + SwiftData + SPM），包含自动更新、开发/发布构建脚本、本地化、菜单栏常驻等。 |
 | 🖼️ | `image-upload` | 把图片上传到你自己的 GitHub repo，返回 jsDelivr CDN / GitHub raw / Markdown 三种链接。支持文件路径、批量、剪贴板。首次需在 `~/.zshrc` 设 `IMAGE_HOST_REPO` 环境变量，详见 [SKILL.md](./skills/image-upload/SKILL.md)。 |
+| 🛡️ | `npm-safety` | 用 [socket.dev](https://socket.dev) 在装包前校验 npm / yarn / pnpm 依赖的供应链安全。自动识别项目包管理器并用它来真正装包——安全检查是包装层，不替你装。首次需装 `socket` CLI + 配 API token，详见 [SKILL.md](./skills/npm-safety/SKILL.md)。 |
 
 ## 各 Skill 前置条件
 
@@ -53,6 +54,7 @@
 | Skill | 需要 | 怎么配 |
 |---|---|---|
 | `image-upload` | **`IMAGE_HOST_REPO` 环境变量** + `gh` CLI 已登录 | `echo 'export IMAGE_HOST_REPO="<你的 gh 用户名>/images"' >> ~/.zshrc && source ~/.zshrc && gh auth login` |
+| `npm-safety` | `socket` CLI + **`SOCKET_CLI_API_TOKEN` 环境变量** | `npm install -g socket@latest && echo 'export SOCKET_CLI_API_TOKEN="<你的 token>"' >> ~/.zshrc && source ~/.zshrc`（在 [socket.dev](https://socket.dev/) 注册拿 token） |
 | `mac-cleanup-disk` | [`tw93/mole`](https://github.com/tw93/mole) CLI | `brew install mole` |
 | `app-icon-generator` | `librsvg`（必装）+ `Pillow`（可选，出 `.ico` 才需要） | `brew install librsvg && pip3 install Pillow` |
 | `macos-app-scaffold` | Xcode ≥ 16（Swift 6.0 工具链） | App Store / Xcode 官网装 |

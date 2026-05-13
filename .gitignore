@@ -3,3 +3,8 @@
 .vscode/
 *.swp
 *.log
+
+# Local Claude Code working files — not part of the published plugin.
+CLAUDE.md
+.claude/
+.claude-local/
