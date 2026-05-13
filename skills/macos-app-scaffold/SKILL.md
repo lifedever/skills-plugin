@@ -1,12 +1,17 @@
 ---
 name: macos-app-scaffold
-description: 创建原生 macOS 应用项目（SwiftUI + SwiftData + SPM），包含自动更新、开发/发布构建脚本、本地化、菜单栏常驻等全套规范。
-user_invocable: true
+description: >
+  Scaffold a production-ready native macOS app project (SwiftUI + SwiftData + SPM)
+  with auto-update via GitHub Releases, dev/release build scripts, in-app localization,
+  menu-bar persistence, and a landing-page template. Use when the user says:
+  "new macos app", "scaffold mac app", "create macos app", "swiftui scaffold",
+  "新建 mac 应用", "脚手架", "生成 macOS 项目", "搭一个 swift app",
+  or asks to start a fresh native macOS app project.
 ---
 
 # 创建 macOS 应用项目
 
-基于 TaskTick 中验证过的最佳实践，生成生产级原生 macOS 应用脚手架。
+生成生产级原生 macOS 应用脚手架，基于 [TaskTick](https://github.com/lifedever/TaskTick) 这类已上线项目沉淀的最佳实践。
 
 ## 用法
 
@@ -172,7 +177,7 @@ CLAUDE.md
 - 静态单页，放在 `docs/` 目录下
 - 通过 GitHub Pages 部署（Settings → Pages → Source: Deploy from branch, Branch: main, Folder: /docs）
 - 推送后自动部署，无需额外 CI
-- 参考 TaskTick 落地页风格，使用 `/frontend-design` 技能生成高质量 UI
+- 落地页采用现代极简风格，可使用 `/frontend-design` 技能生成高质量 UI
 
 **国际化语言支持：**
 - 至少支持：中文（zh）、英文（en）、日文（ja）、韩文（ko）、法文（fr）、德文（de）、西班牙文（es）
@@ -210,7 +215,7 @@ CLAUDE.md
 - 根据用户选择生成对应的 LICENSE 文件
 
 #### CLAUDE.md
-按照 TaskTick 的 CLAUDE.md 格式生成项目说明，包含：
+生成标准的项目说明文件，包含：
 - 构建与运行命令
 - 架构概览
 - 关键设计模式

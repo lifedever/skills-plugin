@@ -15,7 +15,7 @@ macOS 日常使用中，长期运行后 `kernel_task` 经常飙到高 CPU，表�
 - Claude Code 关闭 tab 但 claude 进程未正常退出，遗留一堆 MCP server 孤儿（PPID=1）
 - Docker Desktop UI 退出后 `cagent` 后台进程未清理
 - dev server（vite / pnpm dev / webpack）开完忘了关，挂几天甚至几周
-- Ghostty / zsh 老 tab 累积
+- 终端 tab（任何 macOS 终端）累积 zsh，时间一长占资源
 
 手动用 `ps | grep` 排查费时，编写 shell 脚本又怕规则写死误杀。
 
@@ -42,7 +42,7 @@ macOS 日常使用中，长期运行后 `kernel_task` 经常飙到高 CPU，表�
 ### 2.1 目录结构
 
 ```
-~/.claude/skills/mac-cleanup-process/
+<skill-dir>/
 ├── SKILL.md           # skill 入口：description、frontmatter、交互流程指引
 ├── scan.sh            # 核心扫描脚本，所有判定规则写在这里
 ├── DESIGN.md          # 本文档
@@ -63,7 +63,7 @@ macOS 日常使用中，长期运行后 `kernel_task` 经常飙到高 CPU，表�
     ↓
 Claude 加载 SKILL.md
     ↓
-Claude 执行: bash ~/.claude/skills/mac-cleanup-process/scan.sh
+Claude 执行: bash <skill-dir>/scan.sh
     ↓
 scan.sh 扫描 → 输出 Markdown 报告到 stdout
               → tee 到 ~/Downloads/mac-cleanup-process-<timestamp>.md
@@ -97,7 +97,7 @@ Claude 直接呈现 stdout 内容（几乎零加工）
 |------|--------------------|
 | **老 claude 会话** | 进程名 `claude` **且** `etime > 24h` |
 | **长期 dev server** | 命令匹配 `vite\|webpack\|pnpm dev\|next dev\|nuxt dev\|npm run dev\|yarn dev\|rollup.*watch` **且** `etime > 2 天` |
-| **Ghostty/zsh 老 tab** | zsh 进程的父进程是 `/usr/bin/login`（Ghostty tab 内的 shell）**且** `etime > 3 天` |
+| **长寿命终端 tab** | zsh 进程的父进程是 `/usr/bin/login`（终端 tab 内的 shell）**且** `etime > 3 天` |
 | **大内存超龄** | RSS > 500 MB **且** `etime > 3 天` **且** 未被上述规则覆盖（去重） |
 
 ### 3.3 可调阈值（scan.sh 顶部常量）
@@ -105,7 +105,7 @@ Claude 直接呈现 stdout 内容（几乎零加工）
 ```bash
 OLD_CLAUDE_HOURS=24
 OLD_DEV_SERVER_DAYS=2
-OLD_GHOSTTY_TAB_DAYS=3
+OLD_SHELL_TAB_DAYS=3
 BIG_MEM_RSS_MB=500
 BIG_MEM_DAYS=3
 ```
@@ -162,19 +162,19 @@ BIG_MEM_DAYS=3
 ### ① 老 claude 会话（>24h）
 
 - **PID 91608** [最可疑]
-  - 项目：`~/Documents/Dev/myspace/PasteMemo`
+  - 项目：`~/code/some-old-project`
   - 运行时长：7 天 21 小时
   - 内存：106 MB（自身）+ ~400 MB（18 个 MCP 子进程）
-  - 父进程链：Ghostty → zsh → claude
+  - 父进程链：终端 → zsh → claude
 
 - **PID 19157** `[当前会话·勿杀]`
-  - 项目：`~/Downloads`
+  - 项目：`~/code/current-project`
   - 运行时长：35 分钟
 
 ### ② 长期 dev server（>2 天）
 ...
 
-### ③ Ghostty 老 tab（>3 天）
+### ③ 长期未关的终端 tab（>3 天）
 ...
 
 ### ④ 大内存超龄（RSS >500MB 且 >3 天）
@@ -190,8 +190,8 @@ kill 2396 8572 8641 ...
 pkill -9 -f cagent
 
 # === 可疑项（自行判断后取消注释）===
-# kill 91608   # PasteMemo 老 claude，7 天没关 → 会带走 18 个 MCP 子进程
-# kill 3404    # mn-ewater vite dev，挂了 13 天
+# kill 91608   # 老 claude 会话，7 天没关 → 会带走 18 个 MCP 子进程
+# kill 3404    # vite dev server，挂了 13 天
 ```
 
 ---
@@ -219,7 +219,7 @@ pkill -9 -f cagent
 
 ### 5.1 标准流程
 
-1. **执行扫描**：`bash ~/.claude/skills/mac-cleanup-process/scan.sh`
+1. **执行扫描**：`bash <skill-dir>/scan.sh`
 2. **呈现报告**：把 stdout 原样呈现，允许补充少量上下文标签（如"最可疑"）
 3. **等待用户指令**：不主动催促，不自动再扫
 
@@ -324,9 +324,9 @@ MVP 阶段手动验证，不写自动化测试。
 
 交付物 = **3 个文件**：
 
-1. `~/.claude/skills/mac-cleanup-process/SKILL.md` —— 入口（frontmatter + 交互流程指引）
-2. `~/.claude/skills/mac-cleanup-process/scan.sh` —— 核心脚本
-3. `~/.claude/skills/mac-cleanup-process/README.md` —— 用户文档（讲阈值怎么调）
+1. `<skill-dir>/SKILL.md` —— 入口（frontmatter + 交互流程指引）
+2. `<skill-dir>/scan.sh` —— 核心脚本
+3. `<skill-dir>/README.md` —— 用户文档（讲阈值怎么调）
 
 实施顺序建议：
 1. 先写 `scan.sh`（核心功能）

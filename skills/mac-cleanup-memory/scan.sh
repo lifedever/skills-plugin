@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # mac-cleanup-memory scan.sh —— macOS 内存状态全景诊断（纯诊断，不 kill）
-# 详见 ~/.claude/skills/mac-cleanup-memory/DESIGN.md
+# 详见同目录 DESIGN.md
 
 set -u
 set -o pipefail

@@ -77,7 +77,7 @@ PAGE_SIZE_BYTES="$(sysctl -n hw.pagesize)"
 
 Apple Silicon 是 16384 bytes (16K)，Intel Mac 是 4096 bytes (4K)。硬编码 4K 在 M 系列机器上**算出来全错**（差 4 倍）。
 
-参考 [CLAUDE.md 第 8 条 / 通用自检](~/.claude/CLAUDE.md)：列表/常量类的东西默认按"运行时取"处理。
+通用原则：列表/常量类的东西默认按"运行时取"处理，不要硬编码。Apple Silicon vs Intel page size 就是典型——硬编码 4K 在 M 系列机器上**算出来全错**。
 
 ### 决策 5：压力等级用简化阈值表
 
@@ -133,7 +133,7 @@ Markdown 表格 + 分节，原因：
 
 不在 v1.0 范围，但留着思考：
 
-1. **历史趋势**：每次跑 scan 把关键指标写入 `~/.claude/skills/mac-cleanup-memory/history.csv`，能看到一周内压力变化
+1. **历史趋势**：每次跑 scan 把关键指标写入 `<skill-dir>/history.csv`，能看到一周内压力变化
 2. **App 白名单（"重要 app 不要建议关"）**：如果决策 1 改了要支持建议，可以加个白名单
 3. **集成 Activity Monitor energy impact**：高能耗 != 高内存，但用户语义上可能混着问
 4. **Webhook on Critical**：自动在压力进入 Critical 时通知

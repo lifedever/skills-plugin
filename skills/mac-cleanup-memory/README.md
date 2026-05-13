@@ -8,10 +8,10 @@ macOS 内存状态扫描 skill。**只诊断，不 kill**。
 
 **在 Claude Code 里：** 说"看一下内存"、"内存压力多大"、"谁在吃内存"等中英文触发词，skill 会自动触发。
 
-**在终端独立跑：**
+**直接跑脚本（绕过 Claude Code）：** 先用 `find` 定位 plugin 缓存中的脚本路径（版本号会变）：
 
 ```bash
-bash ~/.claude/skills/mac-cleanup-memory/scan.sh
+bash "$(find ~/.claude/plugins/cache -name scan.sh -path '*mac-cleanup-memory*' 2>/dev/null | sort | tail -1)"
 ```
 
 完整报告会同时：

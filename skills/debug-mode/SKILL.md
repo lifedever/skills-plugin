@@ -100,10 +100,10 @@ echo "run_count=0" > .claude-debug/state
 **Writing a run separator** — before each execution, write a run header:
 
 ```bash
-RUN_NUM=$(($(grep -oP 'run_count=\K\d+' .claude-debug/state) + 1))
+RUN_NUM=$(($(awk -F= '/run_count=/ {print $2}' .claude-debug/state) + 1))
 echo "run_count=$RUN_NUM" > .claude-debug/state
 echo "" >> .claude-debug/debug.log
-echo "========== RUN #$RUN_NUM | $(date -Iseconds) ==========" >> .claude-debug/debug.log
+echo "========== RUN #$RUN_NUM | $(date -u +%Y-%m-%dT%H:%M:%SZ) ==========" >> .claude-debug/debug.log
 ```
 
 This ensures multiple runs are clearly separated in the log file.
@@ -111,7 +111,7 @@ This ensures multiple runs are clearly separated in the log file.
 **Optional: HTTP collector** (for JS/TS/Python projects that benefit from a debug server)
 
 ```bash
-node "${SKILL_DIR}/scripts/debug-server.js" 3333 &
+node "${CLAUDE_SKILL_DIR}/scripts/debug-server.js" 3333 &
 echo $! > .claude-debug/server.pid
 curl -s http://localhost:3333/health
 ```
@@ -219,7 +219,7 @@ java.io.File(".claude-debug/debug.log").appendText("[${java.time.Instant.now()}]
 
 ```bash
 # 🔍 DEBUG PROBE [1] funcName-entry
-echo "[$(date -Iseconds)] [bash] script.sh:42 | funcName-entry | var=$variable" >> .claude-debug/debug.log
+echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] [bash] script.sh:42 | funcName-entry | var=$variable" >> .claude-debug/debug.log
 # 🔍 DEBUG PROBE END [1]
 ```
 
@@ -228,9 +228,9 @@ echo "[$(date -Iseconds)] [bash] script.sh:42 | funcName-entry | var=$variable" 
 **For file-based logging:** Before each run, write a run separator to the log:
 
 ```bash
-RUN_NUM=$(($(grep -oP 'run_count=\K\d+' .claude-debug/state) + 1))
+RUN_NUM=$(($(awk -F= '/run_count=/ {print $2}' .claude-debug/state) + 1))
 echo "run_count=$RUN_NUM" > .claude-debug/state
-echo -e "\n========== RUN #$RUN_NUM | $(date -Iseconds) ==========" >> .claude-debug/debug.log
+echo -e "\n========== RUN #$RUN_NUM | $(date -u +%Y-%m-%dT%H:%M:%SZ) ==========" >> .claude-debug/debug.log
 ```
 
 Then run the code:
@@ -281,7 +281,7 @@ Based on log analysis:
 
 For file-based logging:
 ```bash
-echo -e "\n========== VERIFY | $(date -Iseconds) ==========" >> .claude-debug/debug.log
+echo -e "\n========== VERIFY | $(date -u +%Y-%m-%dT%H:%M:%SZ) ==========" >> .claude-debug/debug.log
 <project run command>
 ```
 

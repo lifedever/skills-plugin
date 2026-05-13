@@ -12,7 +12,7 @@ description: 扫描 macOS 内存全景：系统快照（Free/Active/Inactive/Wir
 ### 步骤 1：执行扫描脚本
 
 ```bash
-bash ~/.claude/skills/mac-cleanup-memory/scan.sh
+bash "${CLAUDE_SKILL_DIR}/scan.sh"
 ```
 
 脚本会：

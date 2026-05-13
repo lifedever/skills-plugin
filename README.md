@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=Latest" alt="Latest"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/skills-8-7C3AED?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/skills-9-7C3AED?style=flat-square" alt="Skills">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -44,6 +44,7 @@
 | 🧠 | `mac-cleanup-memory` | Diagnose macOS memory pressure — system snapshot, top RAM consumers, Swap / Compressor analysis. Pure diagnostic, never kills processes on its own. |
 | ♻️ | `mac-cleanup-process` | Scan macOS for zombie / stuck processes (MCP server orphans, stale dev servers, long-lived Claude sessions, etc.) and suggest kill commands. Pure diagnostic. |
 | 🍎 | `macos-app-scaffold` | Generate a production-ready native macOS app scaffold (SwiftUI + SwiftData + SPM) with auto-update, dev/release build scripts, localization, and menu-bar persistence. |
+| 🖼️ | `image-upload` | Upload images to your own GitHub repo, get jsDelivr CDN / GitHub raw / Markdown URLs back. Supports file paths, batch, and clipboard. Requires one-time env var setup — see [SKILL.md](./skills/image-upload/SKILL.md). |
 
 ## Installation
 

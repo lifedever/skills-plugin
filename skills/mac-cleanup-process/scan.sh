@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # mac-cleanup-process scan.sh — 诊断 macOS 僵尸/卡死进程，只扫描不 kill
-# 详见 ~/.claude/skills/mac-cleanup-process/DESIGN.md
+# 详见同目录 DESIGN.md
 
 set -u  # 未定义变量报错
 set -o pipefail
@@ -14,7 +14,7 @@ fi
 # ===== 阈值常量（用户可改） =====
 OLD_CLAUDE_HOURS=24
 OLD_DEV_SERVER_DAYS=2
-OLD_GHOSTTY_TAB_DAYS=3
+OLD_SHELL_TAB_DAYS=3
 BIG_MEM_RSS_MB=500
 BIG_MEM_DAYS=3
 
@@ -355,10 +355,10 @@ find_old_dev_servers() {
   done <<< "$candidates"
 }
 
-# Ghostty 老 zsh tab
+# 长寿命登录 shell（终端 tab）— 匹配任何由 /usr/bin/login 启动的老 zsh
 # 输出: PID<TAB>etime<TAB>etime_human
-find_old_ghostty_tabs() {
-  local threshold_hours=$((OLD_GHOSTTY_TAB_DAYS * 24))
+find_old_shell_tabs() {
+  local threshold_hours=$((OLD_SHELL_TAB_DAYS * 24))
   local my_uid
   my_uid="$(id -u)"
   # 先找所有 zsh 进程
@@ -526,10 +526,10 @@ render_old_dev_server_section() {
   done <<< "$rows"
 }
 
-render_old_ghostty_section() {
+render_old_shell_section() {
   local rows="$1"
   echo ""
-  echo "### ③ Ghostty 老 tab（>${OLD_GHOSTTY_TAB_DAYS} 天）"
+  echo "### ③ 长期未关的终端 tab（>${OLD_SHELL_TAB_DAYS} 天）"
   echo ""
   if [ -z "$rows" ]; then
     echo "（无）"
@@ -541,7 +541,7 @@ render_old_ghostty_section() {
   local count
   count="$(echo "$rows" | wc -l | tr -d ' ')"
   echo ""
-  echo "**共 $count 个。关闭对应 Ghostty tab 即可。**"
+  echo "**共 $count 个。在对应终端里 Cmd+W 关闭即可（任何 macOS 终端：Terminal / iTerm2 / Ghostty / WezTerm 等都适用）。**"
 }
 
 render_big_mem_section() {
@@ -624,7 +624,7 @@ render_suggested_commands() {
     done <<< "$olds_rows"
   fi
 
-  # 大内存超龄（Ghostty 老 tab 不放这里，因为只建议"关 tab"不建议 kill zsh）
+  # 大内存超龄（长寿命 shell tab 不放这里，因为只建议"关 tab"不建议 kill zsh）
   if [ -n "$bigmem_rows" ]; then
     while IFS=$'\t' read -r pid human rss_mb summary; do
       [ -z "$pid" ] && continue
@@ -675,7 +675,7 @@ render_report() {
   cagent_rows="$(find_cagent_residuals)"
   oldc_rows="$(find_old_claude_sessions "$current_claude")"
   olds_rows="$(find_old_dev_servers)"
-  ghost_rows="$(find_old_ghostty_tabs)"
+  shell_rows="$(find_old_shell_tabs)"
 
   # 聚合已分类 PID（大内存节去重用）
   local classified
@@ -776,7 +776,7 @@ EOF
   echo "## ⚠️ 可疑 —— 需要你判断"
   render_old_claude_section "$current_claude" "$oldc_rows"
   render_old_dev_server_section "$olds_rows"
-  render_old_ghostty_section "$ghost_rows"
+  render_old_shell_section "$shell_rows"
   render_big_mem_section "$bigmem_rows"
 
   render_suggested_commands \

@@ -8,10 +8,10 @@ macOS 僵尸/卡死进程扫描 skill。**只诊断，不 kill**。
 
 **在 Claude Code 里：** 说"扫一下僵尸"、"清理僵尸进程"、"系统卡"等中英文触发词，skill 会自动触发。
 
-**在终端独立跑：**
+**直接跑脚本（绕过 Claude Code）：** 先用 `find` 定位 plugin 缓存中的脚本路径（版本号会变）：
 
 ```bash
-bash ~/.claude/skills/mac-cleanup-process/scan.sh
+bash "$(find ~/.claude/plugins/cache -name scan.sh -path '*mac-cleanup-process*' 2>/dev/null | sort | tail -1)"
 ```
 
 完整报告会同时：
@@ -25,7 +25,7 @@ bash ~/.claude/skills/mac-cleanup-process/scan.sh
 ```bash
 OLD_CLAUDE_HOURS=24       # 老 claude 会话阈值（小时）
 OLD_DEV_SERVER_DAYS=2     # 长期 dev server 阈值（天）
-OLD_GHOSTTY_TAB_DAYS=3    # Ghostty 老 tab 阈值（天）
+OLD_SHELL_TAB_DAYS=3      # 长寿命终端 tab 阈值（天，匹配任何 macOS 终端）
 BIG_MEM_RSS_MB=500        # 大内存候选的 RSS 门槛（MB）
 BIG_MEM_DAYS=3            # 大内存候选的 etime 门槛（天）
 ```
@@ -47,9 +47,6 @@ readonly MCP_PATTERN='(npm exec.*mcp|mcp-server-|@playwright/mcp|...|your-new-mc
 ```bash
 # 比如清理 7 天前的
 find ~/Downloads -name 'mac-cleanup-process-*.md' -mtime +7 -delete
-
-# 旧文件名（重命名前的报告）也一起清
-find ~/Downloads -name 'cleanup-zombies-*.md' -mtime +7 -delete
 ```
 
 ## 依赖
@@ -60,7 +57,6 @@ find ~/Downloads -name 'cleanup-zombies-*.md' -mtime +7 -delete
 ## 设计与实施
 
 - `DESIGN.md` — 完整设计文档（背景、规则、边界情况、演进预留）
-- `PLAN.md` — 实施计划（16 个 task 的实施路径）
 - `SKILL.md` — skill 入口（触发词 + Claude 交互流程指引）
 
 ## Bash 坑记录

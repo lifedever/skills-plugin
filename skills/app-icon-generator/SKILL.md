@@ -45,7 +45,7 @@ Example skeleton:
 Run the bundled conversion script:
 
 ```bash
-bash SKILL_DIR/scripts/convert_icons.sh logo.svg ./icons/
+bash "${CLAUDE_SKILL_DIR}/scripts/convert_icons.sh" logo.svg ./icons/
 ```
 
 This generates all files in one step:

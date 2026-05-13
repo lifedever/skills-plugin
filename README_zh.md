@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC" alt="最新版本"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-8-7C3AED?style=flat-square" alt="技能数">
+  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-9-7C3AED?style=flat-square" alt="技能数">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -44,6 +44,7 @@
 | 🧠 | `mac-cleanup-memory` | 诊断 macOS 内存压力——系统快照、TOP 内存大户、Swap / 压缩器分析。**纯诊断**，绝不主动 kill 进程。 |
 | ♻️ | `mac-cleanup-process` | 扫描 macOS 僵尸 / 卡死进程（MCP server 孤儿、过期 dev server、老 Claude 会话等），给出建议的 kill 命令。**纯诊断**。 |
 | 🍎 | `macos-app-scaffold` | 生成生产级原生 macOS 应用脚手架（SwiftUI + SwiftData + SPM），包含自动更新、开发/发布构建脚本、本地化、菜单栏常驻等。 |
+| 🖼️ | `image-upload` | 把图片上传到你自己的 GitHub repo，返回 jsDelivr CDN / GitHub raw / Markdown 三种链接。支持文件路径、批量、剪贴板。首次需在 `~/.zshrc` 设 `IMAGE_HOST_REPO` 环境变量，详见 [SKILL.md](./skills/image-upload/SKILL.md)。 |
 
 ## 安装
 

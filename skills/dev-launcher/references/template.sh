@@ -27,7 +27,8 @@ PIDS=()
 cleanup() {
     echo ""
     log "dev" "shutting down..."
-    for pid in "${PIDS[@]}"; do
+    for pid in "${PIDS[@]:-}"; do
+        [ -z "$pid" ] && continue
         local pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
         if [ -n "$pgid" ]; then
             kill -- -"$pgid" 2>/dev/null || kill "$pid" 2>/dev/null

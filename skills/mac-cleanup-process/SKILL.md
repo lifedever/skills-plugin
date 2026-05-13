@@ -1,6 +1,6 @@
 ---
 name: mac-cleanup-process
-description: 扫描 macOS 僵尸/卡死进程（MCP server 孤儿、Docker cagent 残留、长期 dev server、老 claude 会话、Ghostty 老 tab、大内存超龄），生成分级诊断报告 + 建议 kill 命令。触发词：清理僵尸进程、系统清理、MCP 孤儿、kernel_task 高、内存高、系统卡、扫僵尸、cleanup zombies、scan zombies、system cleanup、check mcp orphans、清进程、清卡死进程。skill 本身不 kill，只诊断 + 建议。姊妹 skill：mac-cleanup-disk（清磁盘缓存，不动进程）。
+description: 扫描 macOS 僵尸/卡死进程（MCP server 孤儿、Docker cagent 残留、长期 dev server、老 claude 会话、长寿命终端 tab、大内存超龄），生成分级诊断报告 + 建议 kill 命令。触发词：清理僵尸进程、系统清理、MCP 孤儿、kernel_task 高、内存高、系统卡、扫僵尸、cleanup zombies、scan zombies、system cleanup、check mcp orphans、清进程、清卡死进程。skill 本身不 kill，只诊断 + 建议。姊妹 skill：mac-cleanup-disk（清磁盘缓存，不动进程）。
 ---
 
 # mac-cleanup-process
@@ -12,7 +12,7 @@ description: 扫描 macOS 僵尸/卡死进程（MCP server 孤儿、Docker cagen
 ### 步骤 1：执行扫描脚本
 
 ```bash
-bash ~/.claude/skills/mac-cleanup-process/scan.sh
+bash "${CLAUDE_SKILL_DIR}/scan.sh"
 ```
 
 脚本会：
@@ -67,5 +67,4 @@ bash ~/.claude/skills/mac-cleanup-process/scan.sh
 
 - `scan.sh` — 扫描核心
 - `DESIGN.md` — 设计文档
-- `PLAN.md` — 实施计划（本 skill 交付后可归档）
 - `README.md` — 用户文档（阈值调整说明）
