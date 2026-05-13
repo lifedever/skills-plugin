@@ -1,0 +1,12 @@
+{
+  "name": "skills",
+  "description": "lifedever's curated Claude Code skills — macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
+  "version": "0.1.0",
+  "author": {
+    "name": "lifedever",
+    "url": "https://github.com/lifedever"
+  },
+  "homepage": "https://github.com/lifedever/skills-plugin",
+  "repository": "https://github.com/lifedever/skills-plugin",
+  "license": "MIT"
+}
