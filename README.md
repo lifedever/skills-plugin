@@ -8,14 +8,16 @@ Installed as a single Claude Code plugin. Auto-updates via the plugin marketplac
 
 ```
 /plugin marketplace add lifedever/skills-plugin
-/plugin install skills
+/plugin install lifedever
 ```
 
 Claude Code checks for plugin updates roughly every 24 hours. To update manually:
 
 ```
-/plugin update skills
+/plugin update lifedever
 ```
+
+After install, invoke any skill via its namespaced name, e.g. `/lifedever:debug-mode`, `/lifedever:mac-cleanup-process`.
 
 ## Skills included
 
@@ -38,7 +40,7 @@ If you previously installed any of these as a standalone skill (e.g. by cloning 
 rm -rf ~/.claude/skills/<skill-name>
 ```
 
-Then run `/plugin install skills` and invoke skills via their namespaced names (e.g. `/skills:debug-mode`).
+Then run `/plugin install lifedever` and invoke skills via their namespaced names (e.g. `/lifedever:debug-mode`).
 
 ## License
 
