@@ -13,7 +13,7 @@
       "name": "lifedever",
       "source": "./",
       "description": "lifedever's curated Claude Code skills — macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": {
         "name": "lifedever"
       },
