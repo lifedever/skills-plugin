@@ -1,12 +1,22 @@
 {
   "name": "lifedever",
   "description": "lifedever's curated Claude Code skills — macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "lifedever",
     "url": "https://github.com/lifedever"
   },
   "homepage": "https://github.com/lifedever/skills-plugin",
   "repository": "https://github.com/lifedever/skills-plugin",
-  "license": "MIT"
+  "license": "MIT",
+  "skills": [
+    "./skills/app-icon-generator",
+    "./skills/debug-mode",
+    "./skills/dev-launcher",
+    "./skills/localize",
+    "./skills/mac-cleanup-disk",
+    "./skills/mac-cleanup-memory",
+    "./skills/mac-cleanup-process",
+    "./skills/macos-app-scaffold"
+  ]
 }

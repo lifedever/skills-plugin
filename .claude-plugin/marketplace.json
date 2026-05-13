@@ -1,0 +1,33 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "skills-plugin",
+  "owner": {
+    "name": "lifedever"
+  },
+  "metadata": {
+    "description": "lifedever's curated Claude Code skills — macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
+    "version": "0.1.1"
+  },
+  "plugins": [
+    {
+      "name": "lifedever",
+      "source": "./",
+      "description": "lifedever's curated Claude Code skills — macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
+      "version": "0.1.1",
+      "author": {
+        "name": "lifedever"
+      },
+      "category": "development",
+      "keywords": [
+        "macos",
+        "debug",
+        "cleanup",
+        "icon",
+        "localization",
+        "scaffold",
+        "swift"
+      ],
+      "strict": false
+    }
+  ]
+}
