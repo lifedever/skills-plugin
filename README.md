@@ -52,7 +52,10 @@ In Claude Code, run:
 ```
 /plugin marketplace add lifedever/skills-plugin
 /plugin install lifedever@skills-plugin
+/reload-plugins
 ```
+
+The third command refreshes the current session so the new skills are picked up immediately. If you skip it, the skills only become available after restarting Claude Code.
 
 Then invoke any skill via its namespaced name, e.g.:
 

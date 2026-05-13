@@ -52,7 +52,10 @@
 ```
 /plugin marketplace add lifedever/skills-plugin
 /plugin install lifedever@skills-plugin
+/reload-plugins
 ```
+
+第三条 `/reload-plugins` 刷新当前会话让新装的 skill 立即生效。如果跳过它，得等下次重启 Claude Code 才能用。
 
 之后通过带命名空间的方式调用 skill：
 
