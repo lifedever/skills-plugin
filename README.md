@@ -52,7 +52,7 @@ In Claude Code, run:
 
 ```
 /plugin marketplace add lifedever/skills-plugin
-/plugin install lifedever
+/plugin install lifedever@skills-plugin
 ```
 
 Then invoke any skill via its namespaced name, e.g.:
@@ -68,7 +68,7 @@ Then invoke any skill via its namespaced name, e.g.:
 Claude Code checks for plugin updates roughly every 24 hours. To update manually:
 
 ```
-/plugin update lifedever
+/plugin update lifedever@skills-plugin
 ```
 
 ### Migrating from a standalone skill

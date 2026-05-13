@@ -52,7 +52,7 @@ Claude Code 的 skill 机制很好用，但放在 `~/.claude/skills/` 下的自�
 
 ```
 /plugin marketplace add lifedever/skills-plugin
-/plugin install lifedever
+/plugin install lifedever@skills-plugin
 ```
 
 之后通过带命名空间的方式调用 skill：
@@ -68,7 +68,7 @@ Claude Code 的 skill 机制很好用，但放在 `~/.claude/skills/` 下的自�
 Claude Code 每 24h 左右自动检查 plugin 更新。手动触发：
 
 ```
-/plugin update lifedever
+/plugin update lifedever@skills-plugin
 ```
 
 ### 从独立 skill 迁移
