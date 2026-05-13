@@ -1,15 +1,69 @@
 # skills-plugin
 
-A curated set of [Claude Code](https://docs.claude.com/en/docs/claude-code) skills I use daily — macOS development utilities, runtime debugging, icon generation, localization, and system diagnostics.
+<h3 align="center">🧰 skills-plugin</h3>
 
-Installed as a single Claude Code plugin. Auto-updates via the plugin marketplace.
+<p align="center">
+  <strong>A curated set of Claude Code skills for daily development.</strong><br>
+  macOS dev utilities, runtime debugging, icon generation, localization, and system diagnostics — bundled into a single plugin with auto-updates.
+</p>
+
+<p align="center">
+  <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=Latest" alt="Latest"></a>
+  <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
+  <img src="https://img.shields.io/badge/skills-8-7C3AED?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
+</p>
+
+<p align="center">
+  <a href="#installation">⚡ <strong>Install</strong></a> ｜ <a href="https://www.lifedever.com/sponsor/">💖 <strong>Sponsor</strong></a>
+</p>
+
+<p align="center">
+  <a href="README_zh.md">中文文档</a>
+</p>
+
+---
+
+## Why
+
+Claude Code skills work great, but custom ones living under `~/.claude/skills/` need manual `git pull` to stay current. This plugin bundles eight reusable skills into a single marketplace plugin so they:
+
+- Install with one command
+- Auto-update via the plugin marketplace (~24h check interval)
+- Live under a unique namespace (`/lifedever:<skill>`) — no collisions
+
+## Skills included
+
+| | Skill | What it does |
+|---|---|---|
+| 🎨 | `app-icon-generator` | Generate macOS / Windows / iOS / Tauri / Electron app icons from an SVG. Full pipeline: SVG → multi-size PNG → `.icns` / `.ico`. |
+| ⚡ | `debug-mode` | Runtime debug workflow — insert log probes, collect runtime data, locate and fix bugs. Inspired by Cursor's Debug Mode. |
+| 🚀 | `dev-launcher` | Generate a `dev.sh` script that starts frontend + backend together with interactive controls. |
+| 🌍 | `localize` | Apply one content change across every language file in parallel using dispatched agents. |
+| 💾 | `mac-cleanup-disk` | macOS disk maintenance workflow built on top of [`tw93/mole`](https://github.com/tw93/mole). Dry-run first, requires text confirmation before any deletion. |
+| 🧠 | `mac-cleanup-memory` | Diagnose macOS memory pressure — system snapshot, top RAM consumers, Swap / Compressor analysis. Pure diagnostic, never kills processes on its own. |
+| ♻️ | `mac-cleanup-process` | Scan macOS for zombie / stuck processes (MCP server orphans, stale dev servers, long-lived Claude sessions, etc.) and suggest kill commands. Pure diagnostic. |
+| 🍎 | `macos-app-scaffold` | Generate a production-ready native macOS app scaffold (SwiftUI + SwiftData + SPM) with auto-update, dev/release build scripts, localization, and menu-bar persistence. |
 
 ## Installation
+
+In Claude Code, run:
 
 ```
 /plugin marketplace add lifedever/skills-plugin
 /plugin install lifedever
 ```
+
+Then invoke any skill via its namespaced name, e.g.:
+
+```
+/lifedever:debug-mode my login flow randomly drops the session
+/lifedever:mac-cleanup-memory
+/lifedever:app-icon-generator
+```
+
+### Updates
 
 Claude Code checks for plugin updates roughly every 24 hours. To update manually:
 
@@ -17,31 +71,26 @@ Claude Code checks for plugin updates roughly every 24 hours. To update manually
 /plugin update lifedever
 ```
 
-After install, invoke any skill via its namespaced name, e.g. `/lifedever:debug-mode`, `/lifedever:mac-cleanup-process`.
+### Migrating from a standalone skill
 
-## Skills included
-
-| Skill | What it does |
-|---|---|
-| `app-icon-generator` | Generate macOS / Windows / iOS / Tauri / Electron app icons from an SVG. Full pipeline: SVG → multi-size PNG → `.icns` / `.ico`. |
-| `debug-mode` | Runtime debug workflow — insert log probes, collect runtime data, locate and fix bugs. Inspired by Cursor's Debug Mode. |
-| `dev-launcher` | Generate a `dev.sh` script that starts frontend + backend together with interactive controls (restart, status, quit). |
-| `localize` | Apply one content change across every language file in parallel using dispatched agents. |
-| `mac-cleanup-disk` | macOS disk maintenance workflow built on top of [`tw93/mole`](https://github.com/tw93/mole). Dry-run first, requires text confirmation before any deletion. |
-| `mac-cleanup-memory` | Diagnose macOS memory pressure — system snapshot, top RAM consumers (per-PID and per-app), Swap / Compressor analysis. Pure diagnostic, never kills processes on its own. |
-| `mac-cleanup-process` | Scan macOS for zombie / stuck processes (MCP server orphans, stale dev servers, long-lived Claude sessions, etc.) and suggest kill commands. Pure diagnostic. |
-| `macos-app-scaffold` | Generate a production-ready native macOS app scaffold (SwiftUI + SwiftData + SPM) with auto-update, dev/release build scripts, localization, and menu-bar persistence. |
-
-## Migrating from a standalone skill
-
-If you previously installed any of these as a standalone skill (e.g. by cloning into `~/.claude/skills/<name>/`), remove the local copy before installing this plugin to avoid duplicates:
+If you previously installed any of these as a standalone skill (e.g. cloned into `~/.claude/skills/`), remove the local copy before installing this plugin to avoid duplicates:
 
 ```bash
 rm -rf ~/.claude/skills/<skill-name>
 ```
 
-Then run `/plugin install lifedever` and invoke skills via their namespaced names (e.g. `/lifedever:debug-mode`).
+`debug-mode` was previously available at [`lifedever/claudecode-debug-mode`](https://github.com/lifedever/claudecode-debug-mode); that repository is archived and superseded by this plugin.
+
+## Requirements
+
+- Claude Code (any recent version with plugin marketplace support)
+- macOS for the `mac-cleanup-*`, `macos-app-scaffold`, and `app-icon-generator` skills
+- [`mole`](https://github.com/tw93/mole) for `mac-cleanup-disk` (auto-checked at runtime)
+
+## Sponsor
+
+If these skills are useful to you, consider [sponsoring](https://www.lifedever.com/sponsor/) the developer to support ongoing maintenance.
 
 ## License
 
-[MIT](./LICENSE) © lifedever
+[MIT](./LICENSE) © [lifedever](https://github.com/lifedever)
