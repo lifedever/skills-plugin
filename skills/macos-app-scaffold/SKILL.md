@@ -1,5 +1,5 @@
 ---
-name: macos-app
+name: macos-app-scaffold
 description: 创建原生 macOS 应用项目（SwiftUI + SwiftData + SPM），包含自动更新、开发/发布构建脚本、本地化、菜单栏常驻等全套规范。
 user_invocable: true
 ---
@@ -11,7 +11,7 @@ user_invocable: true
 ## 用法
 
 ```
-/macos-app <应用名> [--bundle-id com.example.app] [--github user/repo]
+/macos-app-scaffold <应用名> [--bundle-id com.example.app] [--github user/repo]
 ```
 
 - `应用名`：必填，PascalCase 格式（如 `MyApp`）
