@@ -59,7 +59,8 @@
 | `app-icon-generator` | `librsvg`（必装）+ `Pillow`（可选，出 `.ico` 才需要） | `brew install librsvg && pip3 install Pillow` |
 | `macos-app-scaffold` | Xcode ≥ 16（Swift 6.0 工具链） | App Store / Xcode 官网装 |
 | `debug-mode` | `node`（只在用可选 HTTP 日志收集器时需要） | 写 JS/TS 的话一般都有 |
-| `dev-launcher` / `localize` / `mac-cleanup-memory` / `mac-cleanup-process` | 无 | — |
+
+其余的 `dev-launcher`、`localize`、`mac-cleanup-memory`、`mac-cleanup-process` 装上即用，无需配置。
 
 每个 skill 运行时也会自检前置条件并给出友好提示，所以也可以直接试一下、按报错信息装就行。
 

@@ -59,7 +59,8 @@ Most skills run as-is. A few need a one-time setup or an extra tool — install 
 | `app-icon-generator` | `librsvg` (required) + `Pillow` (optional, for `.ico`) | `brew install librsvg && pip3 install Pillow` |
 | `macos-app-scaffold` | Xcode ≥ 16 (Swift 6.0 toolchain) | Install via App Store / Xcode releases |
 | `debug-mode` | `node` (only for the optional HTTP log collector) | Already installed if you write JS/TS |
-| `dev-launcher`, `localize`, `mac-cleanup-memory`, `mac-cleanup-process` | None | — |
+
+The remaining skills — `dev-launcher`, `localize`, `mac-cleanup-memory`, `mac-cleanup-process` — need no setup.
 
 Each skill also detects its own missing prerequisites at runtime and prints a setup hint, so you can also just try one and follow the error message.
 
