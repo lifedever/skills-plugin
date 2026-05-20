@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=Latest" alt="Latest"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/skills-10-7C3AED?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/skills-11-7C3AED?style=flat-square" alt="Skills">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -27,9 +27,9 @@
 
 ## Highlights
 
-- **Ten curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, memory / disk / process diagnostics, parallel localization, and npm supply-chain checks
+- **Eleven curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, memory / disk / process diagnostics, parallel localization, npm supply-chain checks, and a meta browser to find the right skill when you've forgotten what you have
 - **macOS-dev focused** — most skills target the everyday macOS workflow
-- **One command to install all ten** and they auto-update via the Claude Code plugin marketplace
+- **One command to install all eleven** and they auto-update via the Claude Code plugin marketplace
 - **Namespaced** under `/lifedever:<skill>` so they never collide with other plugins
 
 ## Skills included
@@ -46,6 +46,7 @@
 | 🍎 | `macos-app-scaffold` | Generate a production-ready native macOS app scaffold (SwiftUI + SwiftData + SPM) with auto-update, dev/release build scripts, localization, and menu-bar persistence. |
 | 🖼️ | `image-upload` | Upload images to your own GitHub repo, get jsDelivr CDN / GitHub raw / Markdown URLs back. Supports file paths, batch, and clipboard. Requires one-time env var setup — see [SKILL.md](./skills/image-upload/SKILL.md). |
 | 🛡️ | `npm-safety` | Vet npm / yarn / pnpm packages with [socket.dev](https://socket.dev) before they hit your project. Auto-detects your package manager and uses it for the actual install — the safety check is the wrapper, not the installer. Requires one-time `socket` CLI + API token setup — see [SKILL.md](./skills/npm-safety/SKILL.md). |
+| 🔎 | `skill-scan` | Browse and recommend across **all** locally installed skills (personal + plugin + project). Two modes: a concise categorized list, or scenario-based recommendation with narrowing questions. Solves the "I have too many skills, forgot which to use" problem. |
 
 ## Prerequisites per Skill
 
@@ -60,7 +61,7 @@ Most skills run as-is. A few need a one-time setup or an extra tool — install 
 | `macos-app-scaffold` | Xcode ≥ 16 (Swift 6.0 toolchain) | Install via App Store / Xcode releases |
 | `debug-mode` | `node` (only for the optional HTTP log collector) | Already installed if you write JS/TS |
 
-The remaining skills — `dev-launcher`, `localize`, `mac-cleanup-memory`, `mac-cleanup-process` — need no setup.
+The remaining skills — `dev-launcher`, `localize`, `mac-cleanup-memory`, `mac-cleanup-process`, `skill-scan` — need no setup.
 
 Each skill also detects its own missing prerequisites at runtime and prints a setup hint, so you can also just try one and follow the error message.
 
