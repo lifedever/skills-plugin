@@ -43,22 +43,58 @@ If the summary says `scanned 0 skills`, tell the user and stop — likely no ins
 Emit a categorized inventory. Rules:
 
 1. **No preamble.** Don't say "Here are your skills" — go straight into categories.
-2. **Categories are LLM-inferred** from the descriptions. Typical buckets: *macOS maintenance*, *Apple/Swift dev*, *frontend/UI*, *git & PR*, *deployment & release*, *debugging*, *clipboard & file utilities*, *meta/skill management*, *AI infra (MCP/agents)*, *project-specific*. Skip empty buckets. Don't invent buckets for a single skill — group it with the closest neighbor.
-3. **One line per skill**, format:
+
+2. **Detect current project context, then order categories by relevance.** In `${PROJECT_DIR:-$PWD}`, check for:
+
+   - Claude config: `CLAUDE.md`, `AGENTS.md`, `.claude/`, `.claude-plugin/`
+   - Repo marker: `.git/`
+   - Language manifests: `package.json`, `Package.swift`, `Cargo.toml`, `go.mod`, `pyproject.toml`, `requirements.txt`, `Gemfile`, `pom.xml`, `build.gradle`, `composer.json`
+   - Container: `Dockerfile`, `docker-compose.yml`
+
+   **Project mode** — any of the above exist:
+
+   - Read `CLAUDE.md` (if present) plus the manifest filenames you found; infer the specific project type (e.g. "macOS Swift app", "Vue frontend", "Claude Code skills plugin", "Rust CLI", "Node monorepo").
+   - Order: categories most-aligned with that project type first → general/utility categories middle → unrelated categories last.
+   - Stat-line suffix: `· 已按当前项目（<inferred-type>）相关性排序`.
+
+   **Environment mode** — NONE of the above exist (home dir, `~/Downloads`, scratch, etc.):
+
+   - Order: system / maintenance / utility first (macOS 维护, 剪贴板 / 图床) → skill-mgmt and doc-sync middle → all dev workflows (Superpowers, Git/CR, Apple/Swift, frontend, build/release, project-specific) at the bottom.
+   - Stat-line suffix: `· 未检测到项目上下文，按系统 / 通用工具优先排序`.
+
+   Within a category, keep skill order stable (alphabetical or as scanned). Reordering is at the *category* level only.
+
+3. **Categories are LLM-inferred** from the descriptions. Typical buckets: *macOS 维护 / 本机工具*, *Apple / Swift 开发*, *前端 / 开发脚手架*, *调试*, *构建 / 发版 / CI*, *Git / Code review*, *实施工作流（Superpowers）*, *Skill / Plugin 自动化管理*, *剪贴板 / 图床*, *多语言 / 文档同步*, *客户 / 项目专属*. Skip empty buckets. Don't invent a bucket for a single skill — group it with the closest neighbor.
+
+4. **Each category header carries one emoji** chosen for fit; the skill lines under it stay emoji-free (emoji on every line creates visual clutter). Suggested mapping:
+
+   - 🧹 macOS 维护 / 本机工具
+   - 🍎 Apple / Swift 开发
+   - 🎨 前端 / 开发脚手架
+   - 🐛 调试
+   - 🚀 构建 / 发版 / CI
+   - 🔀 Git / Code review
+   - 🧭 实施工作流（Superpowers）
+   - 🧩 Skill / Plugin 自动化管理
+   - 📎 剪贴板 / 图床
+   - 🔁 多语言 / 文档同步
+   - 🏢 客户 / 项目专属
+
+5. **One line per skill**, format:
 
    ```
    · <name> — <core use case in one sentence>
    ```
 
-4. **The one-liner must answer "when do I use this?"** — distill from the description, do NOT copy it verbatim. Drop trigger-word lists, emoji, marketing language. Keep concrete signals (platform, file type, "before X / after Y").
+6. **The one-liner must answer "when do I use this?"** — distill from the description, do NOT copy it verbatim. Drop trigger-word lists, emoji, marketing language. Keep concrete signals (platform, file type, "before X / after Y").
 
    - ❌ Vague: `debug-mode — 调试工具`
    - ❌ Lazy verbatim: `debug-mode — Runtime debug mode - insert log probes, collect runtime data...`
    - ✅ Useful: `debug-mode — 运行时插探针定位 race condition / 内存泄漏 / 偶发 bug，静态分析搞不定时用`
 
-5. **Source tag** only when ambiguity matters. Add `(project)` or `(personal)` suffix only if a name collision was hidden by dedup, or if the user explicitly asks about source. Plugin skills get no tag by default.
+7. **Source tag** only when ambiguity matters. Add `(project)` or `(personal)` suffix only if a name collision was hidden by dedup, or if the user explicitly asks about source. Plugin skills get no tag by default.
 
-6. **End with one stat line**, terse: `38 skills · 8 categories`.
+8. **End with one stat line**, terse: `<N> skills · <K> categories` + the context-aware suffix from rule 2 (only when context was detected — in the indeterminate case, just `<N> skills · <K> categories`).
 
 That's it. No "let me know if..." trailing question.
 

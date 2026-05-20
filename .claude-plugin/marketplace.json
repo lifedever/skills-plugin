@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "lifedever's curated Claude Code skills \u2014 macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
-    "version": "0.1.6"
+    "version": "0.1.7"
   },
   "plugins": [
     {
       "name": "lifedever",
       "source": "./",
       "description": "lifedever's curated Claude Code skills \u2014 macOS dev utilities, debug workflows, icon generation, localization, and system diagnostics.",
-      "version": "0.1.6",
+      "version": "0.1.7",
       "author": {
         "name": "lifedever"
       },
