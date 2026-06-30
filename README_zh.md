@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC" alt="最新版本"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-11-7C3AED?style=flat-square" alt="技能数">
+  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-13-7C3AED?style=flat-square" alt="技能数">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -27,9 +27,9 @@
 
 ## 亮点
 
-- **11 个精选 skill**，作者日常都在用——Swift 应用脚手架、图标生成、运行时调试、内存 / 磁盘 / 进程诊断、多语言并行同步、npm 供应链安全检查，外加一个 meta 浏览器，装多了忘了用哪个就靠它
+- **13 个精选 skill**，作者日常都在用——Swift 应用脚手架、图标生成、运行时调试、第一性原理根因分析、对抗式代码审查、内存 / 磁盘 / 进程诊断、多语言并行同步、npm 供应链安全检查，外加一个 meta 浏览器，装多了忘了用哪个就靠它
 - **专注 macOS 开发场景**，覆盖日常高频工作流
-- **一条命令装齐全部 11 个**，通过 Claude Code plugin marketplace 自动更新
+- **一条命令装齐全部 13 个**，通过 Claude Code plugin marketplace 自动更新
 - **统一命名空间** `/lifedever:<skill>`，不会和其他 plugin 撞名
 
 ## 包含的技能
@@ -46,6 +46,8 @@
 | 🍎 | `macos-app-scaffold` | 生成生产级原生 macOS 应用脚手架（SwiftUI + SwiftData + SPM），包含自动更新、开发/发布构建脚本、本地化、菜单栏常驻等。 |
 | 🖼️ | `image-upload` | 把图片上传到你自己的 GitHub repo，返回 jsDelivr CDN / GitHub raw / Markdown 三种链接。支持文件路径、批量、剪贴板。首次需在 `~/.zshrc` 设 `IMAGE_HOST_REPO` 环境变量，详见 [SKILL.md](./skills/image-upload/SKILL.md)。 |
 | 🛡️ | `npm-safety` | 用 [socket.dev](https://socket.dev) 在装包前校验 npm / yarn / pnpm 依赖的供应链安全。自动识别项目包管理器并用它来真正装包——安全检查是包装层，不替你装。首次需装 `socket` CLI + 配 API token，详见 [SKILL.md](./skills/npm-safety/SKILL.md)。 |
+| 🧩 | `root-cause` | 第一性原理分析——强制从最基本的事实出发推导，而不是套用训练数据里的现成方案。用于调试找真正根因、架构决策、方案设计。 |
+| 💥 | `break-it` | 对抗式审查——站在攻击者 / 极端用户的角度，在上线前找出 Bug、边界 case 和失败模式。功能 / 重构 / 复杂 Bug 修复完成后跑一遍。 |
 | 🔎 | `skill-scan` | 浏览 + 推荐本地装的**所有** skill（个人 + 插件 + 项目级）。两种模式：分类清单（一行一个，突出核心使用场景），或按场景推荐（必要时反问 1-2 轮收敛）。解决"skill 装多了不知道用哪个"的痛点。 |
 
 ## 各 Skill 前置条件
@@ -61,7 +63,7 @@
 | `macos-app-scaffold` | Xcode ≥ 16（Swift 6.0 工具链） | App Store / Xcode 官网装 |
 | `debug-mode` | `node`（只在用可选 HTTP 日志收集器时需要） | 写 JS/TS 的话一般都有 |
 
-其余的 `dev-launcher`、`localize`、`mac-cleanup-memory`、`mac-cleanup-process`、`skill-scan` 装上即用，无需配置。
+其余的 `dev-launcher`、`localize`、`mac-cleanup-memory`、`mac-cleanup-process`、`root-cause`、`break-it`、`skill-scan` 装上即用，无需配置。
 
 每个 skill 运行时也会自检前置条件并给出友好提示，所以也可以直接试一下、按报错信息装就行。
 
