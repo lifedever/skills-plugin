@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<!--
+  diagram-pro template.
+
+  Replace:
+    {{TITLE}}     page title
+    {{W}} {{H}}   canvas width / height — appears in the <svg> attrs, the
+                  background rect, AND the JS var line. Replace every occurrence.
+    {{PNG_NAME}}  filename for the "download PNG" button
+    {{ICONS}}     the <symbol> defs you actually use (see references/style-spec.md)
+    {{BODY}}      diagram markup
+
+  Everything else — toolbar, zoom/pan, view persistence, ?export=1 clean mode,
+  grid pattern, arrow marker — is done. Don't reimplement it.
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>{{TITLE}}</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#F0F2F5; font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; }
+  #tb { position:fixed; top:0; left:0; right:0; height:46px; z-index:9;
+        background:rgba(255,255,255,.94); backdrop-filter:saturate(1.6) blur(8px);
+        border-bottom:1px solid #DDE1E7; display:flex; align-items:center; gap:8px; padding:0 16px; }
+  #tb .g { display:flex; align-items:center; gap:6px; }
+  #tb .sep { width:1px; height:20px; background:#DDE1E7; margin:0 6px; }
+  #tb span.lb { font-size:12px; color:#6B7684; }
+  #tb button { font:inherit; font-size:12px; height:27px; padding:0 11px; cursor:pointer;
+               border:1px solid #D5DAE1; background:#fff; border-radius:5px; color:#2A3342; }
+  #tb button:hover { background:#F4F6F8; }
+  #tb button.on { background:#2A3342; border-color:#2A3342; color:#fff; }
+  #tb button.icn { width:27px; padding:0; font-size:14px; line-height:1; }
+  #tb #zval { font-size:12px; color:#2A3342; min-width:42px; text-align:center; font-variant-numeric:tabular-nums; }
+  #tb label { font-size:12px; color:#2A3342; display:flex; align-items:center; gap:5px; cursor:pointer; }
+  #tb .primary { background:#2A3342; border-color:#2A3342; color:#fff; }
+  #tb .primary:hover { background:#3A4556; }
+  #tb .hint { margin-left:auto; font-size:11px; color:#98A1AE; }
+  #stage { position:fixed; top:46px; left:0; right:0; bottom:0; overflow:auto; padding:18px; }
+  #wrap { position:relative; margin:0 auto; }
+  #dia { position:absolute; top:0; left:0; transform-origin:0 0; background:#fff;
+         box-shadow:0 1px 3px rgba(20,30,50,.10), 0 12px 32px -14px rgba(20,30,50,.22); }
+</style>
+</head>
+<body>
+
+<div id="tb">
+  <span class="lb">缩放</span>
+  <div class="g"><button class="icn" id="zout">−</button><span id="zval">100%</span><button class="icn" id="zin">+</button></div>
+  <div class="g">
+    <button data-z="fit">适应窗口</button><button data-z="0.5">50%</button>
+    <button data-z="1">100%</button><button data-z="2">200%</button>
+  </div>
+  <div class="sep"></div>
+  <label><input type="checkbox" id="grid"> 显示网格</label>
+  <div class="sep"></div>
+  <button class="primary" id="dl">下载 PNG（2×）</button>
+  <span class="hint">工具栏仅用于预览，不会出现在导出的图片里</span>
+</div>
+
+<div id="stage"><div id="wrap">
+<svg id="dia" width="{{W}}" height="{{H}}" viewBox="0 0 {{W}} {{H}}" xmlns="http://www.w3.org/2000/svg">
+
+<style>
+  .n { width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; color:#1A2230;
+       font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; }
+  .n .t { font-size:12.4px; font-weight:600; line-height:1.35; }
+  .n .d { font-size:10.2px; line-height:1.55; color:#5C6675; margin-top:4px; }
+  .n.ctr { text-align:center; align-items:center; }
+  .n.ctr .d { font-size:9.9px; }
+  .n.sm .t { font-size:11.6px; }
+  .n.sm .d { font-size:9.7px; margin-top:3px; }
+  .n.dia .t { font-size:11.4px; font-weight:600; line-height:1.4; }
+  .n .kv { font-size:9.9px; line-height:1.75; color:#5C6675; margin-top:5px; }
+  .n .kv b { color:#2A3342; font-weight:600; }
+  text { font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",-apple-system,sans-serif; }
+  .ttl { font-size:21px; font-weight:600; fill:#16202E; }
+  .sub { font-size:12px; fill:#4A5464; }
+  .eyebrow { font-size:10.5px; fill:#8A93A3; letter-spacing:.7px; }
+  .colhd { font-size:12.5px; font-weight:600; }
+  .lanehd { font-size:11.8px; font-weight:600; }
+  .edgetxt { font-size:10px; fill:#5C6675; }
+  .brtxt { font-size:10.5px; font-weight:600; fill:#4A5464; text-anchor:middle; }
+  .legtxt { font-size:10.5px; fill:#5C6675; }
+  .bdg { font-size:9px; font-weight:700; text-anchor:middle; }
+</style>
+
+<defs>
+  <pattern id="gridS" width="10" height="10" patternUnits="userSpaceOnUse">
+    <path d="M10 0 L0 0 0 10" fill="none" stroke="#EDF0F4" stroke-width="1"/>
+  </pattern>
+  <pattern id="gridL" width="50" height="50" patternUnits="userSpaceOnUse">
+    <rect width="50" height="50" fill="url(#gridS)"/>
+    <path d="M50 0 L0 0 0 50" fill="none" stroke="#E3E8EE" stroke-width="1"/>
+  </pattern>
+  <marker id="ar" markerWidth="10" markerHeight="8" refX="8.5" refY="4" orient="auto">
+    <path d="M0,0.5 L8.5,4 L0,7.5 z" fill="#8593A6"/>
+  </marker>
+
+{{ICONS}}
+</defs>
+
+<rect id="bg" width="{{W}}" height="{{H}}" fill="#FFFFFF"/>
+
+{{BODY}}
+
+</svg>
+</div></div>
+
+<script>
+(function(){
+  var W={{W}}, H={{H}}, z=1;
+  var svg=document.getElementById('dia'), zval=document.getElementById('zval'),
+      bg=document.getElementById('bg'), stage=document.getElementById('stage'),
+      wrap=document.getElementById('wrap');
+
+  var KEY='diagram-view:'+location.pathname;
+  function save(){ try{ localStorage.setItem(KEY, JSON.stringify({
+    z:z, sl:stage.scrollLeft, st:stage.scrollTop,
+    fit:document.querySelector('#tb button[data-z="fit"]').classList.contains('on')
+  })); }catch(e){} }
+
+  function apply(nz, mark){
+    var old=z;
+    z=Math.min(4, Math.max(0.2, nz));
+    var cw=stage.clientWidth, ch=stage.clientHeight;
+    var ax=(stage.scrollLeft + cw/2 - wrap.offsetLeft)/old;
+    var ay=(stage.scrollTop  + ch/2 - wrap.offsetTop )/old;
+    svg.style.transform='scale('+z+')';
+    wrap.style.width =(W*z)+'px';
+    wrap.style.height=(H*z)+'px';
+    stage.scrollLeft = ax*z + wrap.offsetLeft - cw/2;
+    stage.scrollTop  = ay*z + wrap.offsetTop  - ch/2;
+    zval.textContent=Math.round(z*100)+'%';
+    document.querySelectorAll('#tb button[data-z]').forEach(function(b){
+      b.classList.toggle('on', b.dataset.z===mark);
+    });
+    save();
+  }
+  function fit(){ apply(Math.min((stage.clientWidth-36)/W, (stage.clientHeight-36)/H), 'fit'); }
+
+  document.querySelectorAll('#tb button[data-z]').forEach(function(b){
+    b.addEventListener('click', function(){
+      b.dataset.z==='fit' ? fit() : apply(parseFloat(b.dataset.z), b.dataset.z);
+    });
+  });
+  document.getElementById('zin').addEventListener('click', function(){ apply(z+0.1); });
+  document.getElementById('zout').addEventListener('click', function(){ apply(z-0.1); });
+
+  stage.addEventListener('wheel', function(e){
+    if(!e.metaKey && !e.ctrlKey) return;
+    e.preventDefault();
+    var old=z, r=stage.getBoundingClientRect();
+    var px=(stage.scrollLeft + e.clientX - r.left - wrap.offsetLeft)/old;
+    var py=(stage.scrollTop  + e.clientY - r.top  - wrap.offsetTop )/old;
+    z=Math.min(4, Math.max(0.2, z * (e.deltaY>0 ? 0.94 : 1.06)));
+    svg.style.transform='scale('+z+')';
+    wrap.style.width=(W*z)+'px'; wrap.style.height=(H*z)+'px';
+    stage.scrollLeft = px*z + wrap.offsetLeft - (e.clientX - r.left);
+    stage.scrollTop  = py*z + wrap.offsetTop  - (e.clientY - r.top);
+    zval.textContent=Math.round(z*100)+'%';
+    document.querySelectorAll('#tb button[data-z]').forEach(function(b){ b.classList.remove('on'); });
+    save();
+  }, {passive:false});
+
+  var svTimer=null;
+  stage.addEventListener('scroll', function(){ clearTimeout(svTimer); svTimer=setTimeout(save,150); });
+
+  document.getElementById('grid').addEventListener('change', function(e){
+    bg.setAttribute('fill', e.target.checked ? 'url(#gridL)' : '#FFFFFF');
+  });
+
+  document.getElementById('dl').addEventListener('click', function(){
+    var btn=this, tf=svg.style.transform;
+    btn.disabled=true; btn.textContent='导出中…';
+    svg.style.transform='none';
+    var src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(
+      '<?xml version="1.0" encoding="UTF-8"?>'+new XMLSerializer().serializeToString(svg));
+    svg.style.transform=tf;
+    var img=new Image();
+    img.onload=function(){
+      var c=document.createElement('canvas');
+      c.width=W*2; c.height=H*2;
+      var ctx=c.getContext('2d');
+      ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+      ctx.drawImage(img,0,0,c.width,c.height);
+      var a=document.createElement('a');
+      a.download='{{PNG_NAME}}';
+      a.href=c.toDataURL('image/png'); a.click();
+      btn.disabled=false; btn.textContent='下载 PNG（2×）';
+    };
+    img.onerror=function(){
+      btn.disabled=false; btn.textContent='下载 PNG（2×）';
+      alert('浏览器导出失败，请重试。');
+    };
+    img.src=src;
+  });
+
+  wrap.style.width=W+'px'; wrap.style.height=H+'px';
+
+  if(/[?&]export=1/.test(location.search)){
+    document.getElementById('tb').style.display='none';
+    stage.style.cssText='position:static;padding:0;overflow:visible';
+    svg.style.boxShadow='none';
+    document.body.style.background='#fff';
+    return;
+  }
+
+  var saved=null; try{ saved=JSON.parse(localStorage.getItem(KEY)); }catch(e){}
+  if(saved && saved.z && !saved.fit){
+    apply(saved.z);
+    stage.scrollLeft=saved.sl||0; stage.scrollTop=saved.st||0;
+  } else {
+    fit();
+  }
+  window.addEventListener('resize', function(){
+    if(document.querySelector('#tb button[data-z="fit"]').classList.contains('on')) fit();
+  });
+})();
+</script>
+</body>
+</html>

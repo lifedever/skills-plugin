@@ -4,13 +4,13 @@
 
 <p align="center">
   <strong>A curated set of Claude Code skills for daily development.</strong><br>
-  macOS dev utilities, runtime debugging, icon generation, localization, and system diagnostics — bundled into a single plugin with auto-updates.
+  macOS dev utilities, runtime debugging, icon generation, diagramming, localization, and system diagnostics — bundled into a single plugin with auto-updates.
 </p>
 
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=Latest" alt="Latest"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/skills-13-7C3AED?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/skills-14-7C3AED?style=flat-square" alt="Skills">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -27,9 +27,9 @@
 
 ## Highlights
 
-- **Thirteen curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, first-principles root-cause analysis, adversarial code review, memory / disk / process diagnostics, parallel localization, npm supply-chain checks, and a meta browser to find the right skill when you've forgotten what you have
+- **Fourteen curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, first-principles root-cause analysis, adversarial code review, deliverable-grade diagramming, memory / disk / process diagnostics, parallel localization, npm supply-chain checks, and a meta browser to find the right skill when you've forgotten what you have
 - **macOS-dev focused** — most skills target the everyday macOS workflow
-- **One command to install all thirteen** and they auto-update via the Claude Code plugin marketplace
+- **One command to install all fourteen** and they auto-update via the Claude Code plugin marketplace
 - **Namespaced** under `/lifedever:<skill>` so they never collide with other plugins
 
 ## Skills included
@@ -39,6 +39,7 @@
 | 🎨 | `app-icon-generator` | Generate macOS / Windows / iOS / Tauri / Electron app icons from an SVG. Full pipeline: SVG → multi-size PNG → `.icns` / `.ico`. |
 | ⚡ | `debug-mode` | Runtime debug workflow — insert log probes, collect runtime data, locate and fix bugs. Inspired by Cursor's Debug Mode. |
 | 🚀 | `dev-launcher` | Generate a `dev.sh` script that starts frontend + backend together with interactive controls. |
+| 📐 | `diagram-pro` | Deliverable-grade flowcharts and architecture diagrams as hand-written SVG in a self-contained HTML page — draw.io visual grammar, preview toolbar (zoom / grid / PNG@2x), and a mandatory render-and-inspect pass. For bids, decks, and docs, where a Mermaid sketch doesn't hold up. |
 | 🌍 | `localize` | Apply one content change across every language file in parallel using dispatched agents. |
 | 💾 | `mac-cleanup-disk` | macOS disk maintenance workflow built on top of [`tw93/mole`](https://github.com/tw93/mole). Dry-run first, requires text confirmation before any deletion. |
 | 🧠 | `mac-cleanup-memory` | Diagnose macOS memory pressure — system snapshot, top RAM consumers, Swap / Compressor analysis. Pure diagnostic, never kills processes on its own. |
@@ -62,6 +63,7 @@ Most skills run as-is. A few need a one-time setup or an extra tool — install 
 | `app-icon-generator` | `librsvg` (required) + `Pillow` (optional, for `.ico`) | `brew install librsvg && pip3 install Pillow` |
 | `macos-app-scaffold` | Xcode ≥ 16 (Swift 6.0 toolchain) | Install via App Store / Xcode releases |
 | `debug-mode` | `node` (only for the optional HTTP log collector) | Already installed if you write JS/TS |
+| `diagram-pro` | Google Chrome (or any Chromium) for the headless render check; `Pillow` optional, for cropping | `brew install --cask google-chrome && pip3 install Pillow` |
 
 The remaining skills — `dev-launcher`, `localize`, `mac-cleanup-memory`, `mac-cleanup-process`, `root-cause`, `break-it`, `skill-scan` — need no setup.
 

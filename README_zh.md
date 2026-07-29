@@ -4,13 +4,13 @@
 
 <p align="center">
   <strong>日常开发用的 Claude Code 技能集</strong><br>
-  macOS 开发工具、运行时调试、图标生成、多语言、系统诊断——打包成一个 plugin，支持自动更新。
+  macOS 开发工具、运行时调试、图标生成、专业绘图、多语言、系统诊断——打包成一个 plugin，支持自动更新。
 </p>
 
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC" alt="最新版本"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-13-7C3AED?style=flat-square" alt="技能数">
+  <img src="https://img.shields.io/badge/%E6%8A%80%E8%83%BD%E6%95%B0-14-7C3AED?style=flat-square" alt="技能数">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -27,9 +27,9 @@
 
 ## 亮点
 
-- **13 个精选 skill**，作者日常都在用——Swift 应用脚手架、图标生成、运行时调试、第一性原理根因分析、对抗式代码审查、内存 / 磁盘 / 进程诊断、多语言并行同步、npm 供应链安全检查，外加一个 meta 浏览器，装多了忘了用哪个就靠它
+- **14 个精选 skill**，作者日常都在用——Swift 应用脚手架、图标生成、运行时调试、第一性原理根因分析、对抗式代码审查、交付级流程图 / 架构图、内存 / 磁盘 / 进程诊断、多语言并行同步、npm 供应链安全检查，外加一个 meta 浏览器，装多了忘了用哪个就靠它
 - **专注 macOS 开发场景**，覆盖日常高频工作流
-- **一条命令装齐全部 13 个**，通过 Claude Code plugin marketplace 自动更新
+- **一条命令装齐全部 14 个**，通过 Claude Code plugin marketplace 自动更新
 - **统一命名空间** `/lifedever:<skill>`，不会和其他 plugin 撞名
 
 ## 包含的技能
@@ -39,6 +39,7 @@
 | 🎨 | `app-icon-generator` | 从 SVG 生成 macOS / Windows / iOS / Tauri / Electron 应用图标。完整流水线：SVG → 多尺寸 PNG → `.icns` / `.ico`。 |
 | ⚡ | `debug-mode` | 运行时调试流程——插入日志探针、收集运行时数据、定位修复 Bug。灵感来自 Cursor 的 Debug Mode。 |
 | 🚀 | `dev-launcher` | 生成 `dev.sh` 启动脚本，一键拉起前后端，附带交互式控制（重启 / 状态 / 退出）。 |
+| 📐 | `diagram-pro` | 交付级业务流程图 / 技术架构图：手写 SVG 装进自包含 HTML，draw.io 视觉语法（标准形状 + 线性图标 + 必备图例），自带预览工具栏（缩放 / 网格 / PNG@2x / 纯净导出），交付前强制渲染回看校验。投标、汇报、文档配图用，Mermaid 撑不住排版的场合。 |
 | 🌍 | `localize` | 把单条内容变更并行同步到项目里所有语言文件，用子 Agent 加速。 |
 | 💾 | `mac-cleanup-disk` | macOS 磁盘维护流程，基于 [`tw93/mole`](https://github.com/tw93/mole)。dry-run 优先，删除前必须用户文字确认。 |
 | 🧠 | `mac-cleanup-memory` | 诊断 macOS 内存压力——系统快照、TOP 内存大户、Swap / 压缩器分析。**纯诊断**，绝不主动 kill 进程。 |
@@ -62,6 +63,7 @@
 | `app-icon-generator` | `librsvg`（必装）+ `Pillow`（可选，出 `.ico` 才需要） | `brew install librsvg && pip3 install Pillow` |
 | `macos-app-scaffold` | Xcode ≥ 16（Swift 6.0 工具链） | App Store / Xcode 官网装 |
 | `debug-mode` | `node`（只在用可选 HTTP 日志收集器时需要） | 写 JS/TS 的话一般都有 |
+| `diagram-pro` | Google Chrome（或任意 Chromium）跑无头渲染校验；`Pillow` 可选，用于裁图 | `brew install --cask google-chrome && pip3 install Pillow` |
 
 其余的 `dev-launcher`、`localize`、`mac-cleanup-memory`、`mac-cleanup-process`、`root-cause`、`break-it`、`skill-scan` 装上即用，无需配置。
 
