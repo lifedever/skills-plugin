@@ -1,10 +1,11 @@
 ---
 name: dev-launcher
 description: >
-  Generate dev.sh startup script for frontend+backend projects.
-  Use when user says: "生成启动脚本", "帮我生成启动脚本", "写一个dev.sh",
-  "generate dev script", "create launch script", "写启动脚本",
-  or asks to create a script to start both frontend and backend services together.
+  Use when the user wants a single one-command script to start a project's
+  frontend and backend together for local development.
+  Triggers: "生成启动脚本", "帮我生成启动脚本", "写一个dev.sh", "写启动脚本",
+  "前后端一起启动", "一键启动前后端", "一键启动脚本",
+  "generate dev script", "create launch script", "one command to run frontend and backend".
 ---
 
 # Dev Launcher
@@ -42,8 +43,8 @@ Read [references/template.sh](references/template.sh) and replace all `{{...}}` 
 |---|---|
 | `{{SERVER_DIR_NAME}}` | Server directory name |
 | `{{CLIENT_DIR_NAME}}` | Client directory name |
-| `{{SERVER_PGREP_PATTERN}}` | pgrep pattern with project dir name |
-| `{{CLIENT_PGREP_PATTERN}}` | pgrep pattern with project dir name |
+| `{{SERVER_PGREP_PATTERN}}` | pgrep pattern uniquely identifying this project (abs-path fragment, not a bare common dir name) |
+| `{{CLIENT_PGREP_PATTERN}}` | pgrep pattern uniquely identifying this project (abs-path fragment, not a bare common dir name) |
 | `{{SERVER_START_LOG}}` | Log message for server start |
 | `{{SERVER_START_CMD}}` | Full server start command |
 | `{{CLIENT_START_LOG}}` | Log message for client start |
@@ -82,9 +83,10 @@ EXTRA_PGREP: local gradle_pids=$(pgrep -f "gradle.*{{DIR}}" 2>/dev/null)
 
 ### 5. Critical rules
 
-- **NEVER kill by port.** Only match by project-specific directory name in pgrep patterns.
+- **NEVER kill by port.** `lsof -i:PORT` matches client *connections* to that port too, not just the listener — feeding it to `kill` will take down unrelated apps. Match only by project-specific pgrep patterns.
 - **All background commands MUST use `< /dev/null`** — prevents stdin conflicts with Vite/webpack keyboard shortcuts.
-- **pgrep patterns MUST include the project directory name** to avoid killing other projects.
+- **pgrep patterns MUST be uniquely identifying.** Anchor with an absolute-path fragment of the project (e.g. `spring-boot:run.*/abs/path/to/proj/server`), not just a bare directory name. If the dir name is a common word (`web`, `api`, `server`, `app`, `client`), a bare-name pattern will also match *other* projects' processes and kill them — always include enough of the path to be unique to this project.
+- **Never escalate to `kill -9` on a stale PID list.** Between SIGTERM and SIGKILL a PID may be recycled by the OS; re-match by pattern before force-killing so you only ever `-9` processes that still belong to this project.
 
 ### 6. Output
 

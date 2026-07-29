@@ -22,18 +22,27 @@ ok()   { echo -e "${GREEN}[$1]${NC} $2"; }
 warn() { echo -e "${YELLOW}[$1]${NC} $2"; }
 err()  { echo -e "${RED}[$1]${NC} $2"; }
 
-PIDS=()
+# 追踪各服务的后台进程(命名变量,不用扁平数组)——
+# 单独重启一个服务不会丢失另一个的 PID;停止时清空,避免陈旧 PID 被系统复用后误杀
+SERVER_PID=""
+CLIENT_PID=""
+
+# 只杀"仍存活、且确实是我们启动的"那个后台进程组;PID 已退出则跳过
+# ——退出后该 PID 可能被系统复用给无关进程,盲目 kill 进程组会误伤(见项目杀进程红线)
+kill_own_pgid() {
+    local pid=$1
+    [ -z "$pid" ] && return
+    kill -0 "$pid" 2>/dev/null || return
+    local pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+    [ -n "$pgid" ] && { kill -- -"$pgid" 2>/dev/null || kill "$pid" 2>/dev/null; }
+}
 
 cleanup() {
     echo ""
     log "dev" "shutting down..."
-    for pid in "${PIDS[@]:-}"; do
-        [ -z "$pid" ] && continue
-        local pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
-        if [ -n "$pgid" ]; then
-            kill -- -"$pgid" 2>/dev/null || kill "$pid" 2>/dev/null
-        fi
-    done
+    kill_own_pgid "$SERVER_PID"
+    kill_own_pgid "$CLIENT_PID"
+    # pattern 兜底:pattern 含项目专属路径,只匹配本项目进程,扫掉 fork 出的残余子进程
     pgrep -f "$SERVER_PATTERN" 2>/dev/null | xargs kill 2>/dev/null
     pgrep -Ef "$CLIENT_PATTERN" 2>/dev/null | xargs kill 2>/dev/null
     sleep 1
@@ -59,14 +68,16 @@ run_client() {
 
 start_server_bg() {
     run_server &
-    PIDS+=($!)
+    SERVER_PID=$!
 }
 
 start_client_bg() {
     run_client &
-    PIDS+=($!)
+    CLIENT_PID=$!
 }
 
+# 停止一个服务:全程只用项目专属 pattern 精确匹配,绝不按端口、绝不用 PGID
+# (PGID 杀组会连累同会话其他服务;按端口会误杀"连到"该端口的客户端——见项目杀进程红线)
 stop_by_name() {
     local name=$1
     local found=0
@@ -74,25 +85,26 @@ stop_by_name() {
     if [ "$name" = "server" ]; then
         pids=$(pgrep -f "$SERVER_PATTERN" 2>/dev/null)
         {{SERVER_EXTRA_PGREP}}
-        if [ -n "$pids" ]; then
-            echo "$pids" | xargs kill 2>/dev/null
-            found=1
-        fi
+        SERVER_PID=""
     elif [ "$name" = "client" ]; then
         pids=$(pgrep -Ef "$CLIENT_PATTERN" 2>/dev/null)
-        if [ -n "$pids" ]; then
-            echo "$pids" | xargs kill 2>/dev/null
-            found=1
-        fi
+        CLIENT_PID=""
+    fi
+    if [ -n "$pids" ]; then
+        echo "$pids" | xargs kill 2>/dev/null       # 先 SIGTERM 礼貌退出
+        found=1
     fi
     if [ "$found" -eq 1 ]; then
         sleep 2
-        # Force-kill any survivors
-        for pid in $pids; do
-            if kill -0 "$pid" 2>/dev/null; then
-                kill -9 "$pid" 2>/dev/null
-            fi
-        done
+        # 升级 SIGKILL 前重新按 pattern 抓一次,只 -9 此刻仍匹配本项目的存活进程;
+        # 不复用 sleep 前的旧 PID 列表——这 2s 内进程若已退出,其 PID 可能被系统复用,盲目 -9 会误杀
+        local survivors=""
+        if [ "$name" = "server" ]; then
+            survivors=$(pgrep -f "$SERVER_PATTERN" 2>/dev/null)
+        else
+            survivors=$(pgrep -Ef "$CLIENT_PATTERN" 2>/dev/null)
+        fi
+        [ -n "$survivors" ] && echo "$survivors" | xargs kill -9 2>/dev/null
         sleep 0.5
         ok "$name" "stopped"
     else
@@ -135,13 +147,12 @@ print_shortcuts() {
 
 restart_service() {
     local target=$1
-    PIDS=()
     if [ "$target" = "all" ]; then
         stop_by_name server; stop_by_name client
         start_server_bg; start_client_bg
         ok "dev" "both restarted"
     elif [ "$target" = "server" ]; then
-        stop_by_name server
+        stop_by_name server        # 只清 SERVER_PID,CLIENT_PID 原样保留
         start_server_bg
         ok "server" "restarted"
     elif [ "$target" = "client" ]; then
