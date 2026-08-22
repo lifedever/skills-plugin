@@ -270,6 +270,25 @@ Their data lives in `~/Library/Containers/<bundle id>` rather than the spread of
 `Application Support` / `Caches` / `Preferences` that native apps use, so the
 report calls this out explicitly.
 
+## Dot-directories in $HOME
+
+`scan.sh` originally only looked in `~/Library` and the system locations, which
+maps to how Cocoa apps behave. Java and CLI-style apps do not: FreeBox (a JavaFX
+app packaged with jpackage) kept **everything** in `~/.freebox` — config, spider
+caches, logs — while `~/Library` held literally nothing. The scan reported "0
+leftovers" for an app that plainly had some, which is worse than reporting
+nothing at all, because it looks authoritative.
+
+So `~/.<name>` is now checked, for the app's own name and the last segment of its
+bundle id, exact matches only. Both gates in `uninstall.sh` allow such a path
+**only when the basename identifies the target** (`matches_target_name`), which
+is what keeps `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.config` and `~/.claude`
+unreachable — verified against all of them plus the deeper forms
+`~/.config/freebox` and `~/.freebox/config`, all refused.
+
+Note the ordering requirement again: `"$HOME"/.*/*` must be tested *before*
+`"$HOME"/.*`, because `*` matches `/`.
+
 ## Bugs found during development
 
 Recorded because each one was silent:
@@ -277,6 +296,17 @@ Recorded because each one was silent:
 - `case "$1" in *"$(printf '\n')"*)` — command substitution strips trailing newlines, so the pattern collapsed to `*` and matched **every** path. Use `$'\n'`.
 - `grep -c ... || echo 0` — `grep -c` prints `0` *and* exits 1 when there are no matches, so the fallback appended a second zero and counts rendered as `0\n0`.
 - `scan.sh` surfaced `~/Library/<bundleid>` (depth 2) but `uninstall.sh`'s depth rule rejected it — the two scripts disagreed about what a valid leftover is. Same class of bug as "one resolver copied half-way into a second entry point".
+- Case-insensitive filesystems: probing `~/.FreeBox` *and* `~/.freebox` made both
+  pass `-e` and land in the report as two separate entries — they are one
+  directory. String dedup misses this; `-ef` compares inodes and catches it.
+- `pgrep -f` matches the whole command line, so the bundle id merely *appearing*
+  in the command that launched the script read as "the app is running" and
+  blocked the uninstall. Fixed by anchoring on the bundle's executable path where
+  available, and excluding this process's own ancestry.
+- `"...~/.$dot_name（Java...)"` — a variable name followed immediately by a
+  non-ASCII character gets the multibyte char pulled into the name
+  (`dot_name�: unbound variable`). Always brace as `${var}` before CJK text.
+  Audit with: `grep -nP '\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]'`
 - A blocked target still printed the heading "✅ Safe to remove". The heading alone invites someone to go delete them by hand; blocked targets now print an informational heading instead.
 
 ## Adversarial audit

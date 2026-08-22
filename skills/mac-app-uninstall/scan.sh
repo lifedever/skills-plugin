@@ -49,7 +49,7 @@ done
 # read or how the census is built.
 MAU_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -f "$MAU_LIB_DIR/lib.sh" ]; then
-  echo "错误: 未找到 lib.sh（应与 scan.sh 同目录: $MAU_LIB_DIR）" >&2
+  echo "错误: 未找到 lib.sh（应与 scan.sh 同目录: ${MAU_LIB_DIR}）" >&2
   exit 1
 fi
 # shellcheck source=lib.sh
@@ -313,7 +313,7 @@ trap 'rm -f "$CENSUS_FILE" "$CANDIDATES_FILE" "$SEEN_FILE" "$SKIPPED_FILE"' EXIT
 
 # classify + record a single path.
 consider() {
-  local p="$1" base owner
+  local p="$1" why="${2:-Bundle ID 精确匹配}" base owner
   [ -e "$p" ] || return 0
 
   # Never propose the target bundle itself here (handled separately).
@@ -343,7 +343,7 @@ consider() {
     printf 'REVIEW\t%s\tBundle ID 匹配，但本机还装着该应用的另一份\n' "$p" >> "$CANDIDATES_FILE"
     return 0
   fi
-  printf 'SAFE\t%s\tBundle ID 精确匹配\n' "$p" >> "$CANDIDATES_FILE"
+  printf 'SAFE\t%s\t%s\n' "$p" "$why" >> "$CANDIDATES_FILE"
 }
 
 # 5a. Exact bundle-id lookups across the standard leftover locations.
@@ -400,6 +400,36 @@ if [ -n "$BUNDLE_ID" ]; then
     consider "$hit"
   done < <(find "$USER_LIB" -maxdepth 3 \( -name "$BID_GLOB" -o -name "$BID_GLOB.*" \) 2>/dev/null)
 fi
+
+# 5c. Unix-style dot directory in $HOME.
+# Java and CLI-style apps keep their data in ~/.<name> rather than ~/Library.
+# FreeBox (a JavaFX app) had 68KB of config and spider caches in ~/.freebox while
+# ~/Library contained nothing whatsoever — without this the scan reports "0
+# leftovers" for an app that clearly has some, which is worse than useless.
+#
+# Only exact name matches are considered: the app's own name, and the last
+# segment of its bundle id. No globbing, so ~/.ssh can never surface here.
+# macOS filesystems are case-insensitive by default, so ~/.FreeBox and
+# ~/.freebox resolve to the SAME directory and both pass -e. String dedup does
+# not catch that; -ef compares inodes and does. Lowercase is tried first so the
+# surviving entry carries the name the user will actually see on disk.
+DOTS_SEEN="$(mktemp -t mau_dots)"
+for dot_name in "$(lower "$APP_NAME")" "$APP_NAME" "$(lower "${BUNDLE_ID##*.}")" "${BUNDLE_ID##*.}" "$BUNDLE_ID"; do
+  [ -n "$dot_name" ] || continue
+  dot_path="$HOME/.$dot_name"
+  [ -e "$dot_path" ] || continue
+
+  dot_dup=0
+  while IFS= read -r dot_prev; do
+    [ -n "$dot_prev" ] || continue
+    if [ "$dot_path" -ef "$dot_prev" ]; then dot_dup=1; break; fi
+  done < "$DOTS_SEEN"
+  [ "$dot_dup" -eq 1 ] && continue
+
+  printf '%s\n' "$dot_path" >> "$DOTS_SEEN"
+  consider "$dot_path" "应用把数据存在了 ~/.${dot_name}（Java / 命令行风格应用的惯例）"
+done
+rm -f "$DOTS_SEEN"
 
 # ===== Step 6: sudo-tier findings (reported, never executed by this skill) =====
 

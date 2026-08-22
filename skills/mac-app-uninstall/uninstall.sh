@@ -64,6 +64,26 @@ command -v /usr/bin/trash > /dev/null 2>&1 || {
 # would otherwise match every process and permanently block execution.
 escape_ere() { printf '%s' "$1" | sed 's/[][^$.*+?(){}|\\]/\\&/g'; }
 
+# Does this basename identify the app being uninstalled? Used by both gates to
+# decide whether a dot-directory in $HOME may be touched. Requiring a name match
+# is what keeps ~/.ssh, ~/.gnupg and ~/.config unreachable: they match no app.
+matches_target_name() {
+  local base="$1" stripped lbase lbid
+  stripped="${base#.}"
+  lbase="$(printf '%s' "$stripped" | tr '[:upper:]' '[:lower:]')"
+  [ -n "$lbase" ] || return 1
+
+  if [ -n "${APP_LABEL:-}" ]; then
+    [ "$lbase" = "$(printf '%s' "$APP_LABEL" | tr '[:upper:]' '[:lower:]')" ] && return 0
+  fi
+  if [ -n "${BUNDLE_ID:-}" ] && [ "$BUNDLE_ID" != "unknown" ]; then
+    lbid="$(printf '%s' "$BUNDLE_ID" | tr '[:upper:]' '[:lower:]')"
+    [ "$lbase" = "$lbid" ] && return 0
+    [ "$lbase" = "${lbid##*.}" ] && return 0
+  fi
+  return 1
+}
+
 # ===== Path safety gate =====
 # A manifest is just a text file. Treat every path in it as untrusted: an edited
 # or stale manifest must never be able to trash $HOME, /Library, or a whole
@@ -98,6 +118,20 @@ is_allowed_path() {
     # An app bundle, never the /Applications directory itself.
     /Applications/*.app | /Applications/*/*.app) return 0 ;;
     "$HOME"/Applications/*.app) return 0 ;;
+
+    # Anything deeper than one level inside a dot-directory is out of scope.
+    # Listed before the single-level pattern below, since `*` matches `/` too.
+    "$HOME"/.*/*) return 1 ;;
+
+    # A dot-directory directly in $HOME — the Unix convention Java and CLI-style
+    # apps use instead of ~/Library. FreeBox (JavaFX) kept all its config and
+    # caches in ~/.freebox while ~/Library held nothing at all, so refusing these
+    # outright means "uninstall cleanly" quietly misses the only real leftover.
+    # Gated on a name match, so ~/.ssh and friends stay unreachable.
+    "$HOME"/.*)
+      matches_target_name "$(basename "$p")" && return 0
+      return 1
+      ;;
   esac
   return 1
 }
@@ -118,7 +152,10 @@ is_protected_target() {
   # Apple-owned bundle id, whether it names a .app or a ~/Library leftover.
   base="$(basename "$p")"
   case "$base" in
-    com.apple.* | .* ) return 0 ;;
+    com.apple.*) return 0 ;;
+    # Hidden files stay protected unless the name identifies the target app —
+    # the same test is_allowed_path applies, so both gates must agree.
+    .*) matches_target_name "$base" || return 0 ;;
   esac
 
   # For a real bundle, read its identity instead of trusting the filename.
@@ -195,10 +232,33 @@ n_targets=$(wc -l < "$TARGETS_FILE" | tr -d ' ')
 # ===== Running-process guard =====
 # Trashing a running app's preferences accomplishes nothing: it rewrites them on
 # quit. Trashing the bundle out from under a running process is worse.
-RUNNING=""
-if [ -n "$BUNDLE_ID" ] && [ "$BUNDLE_ID" != "unknown" ]; then
-  RUNNING="$(pgrep -f "$(escape_ere "$BUNDLE_ID")" 2>/dev/null | grep -v "^$$\$" | tr '\n' ' ' || true)"
+# pgrep -f matches the WHOLE command line, so the bundle id appearing in the
+# command that launched this script (or in an ancestor shell's history) reads as
+# "the app is running" and blocks the uninstall. Two defences: prefer matching
+# the bundle's executable path, and exclude our own process ancestry.
+self_chain=" $$ "
+_anc="$PPID"; _depth=0
+while [ -n "$_anc" ] && [ "$_anc" != "0" ] && [ "$_anc" != "1" ] && [ "$_depth" -lt 12 ]; do
+  self_chain="$self_chain$_anc "
+  _anc="$(ps -p "$_anc" -o ppid= 2>/dev/null | tr -d ' ')"
+  _depth=$((_depth + 1))
+done
+
+BUNDLE_PATH="$(awk -F'\t' '$1=="BUNDLE" {print $2; exit}' "$MANIFEST" 2>/dev/null)"
+running_raw=""
+if [ -n "$BUNDLE_PATH" ]; then
+  # Anchored on the executable path — a mention in someone's command line
+  # cannot match this.
+  running_raw="$(pgrep -f "^$(escape_ere "$BUNDLE_PATH")/" 2>/dev/null || true)"
+elif [ -n "$BUNDLE_ID" ] && [ "$BUNDLE_ID" != "unknown" ]; then
+  running_raw="$(pgrep -f "$(escape_ere "$BUNDLE_ID")" 2>/dev/null || true)"
 fi
+
+RUNNING=""
+for _pid in $running_raw; do
+  case "$self_chain" in *" $_pid "*) continue ;; esac
+  RUNNING="$RUNNING$_pid "
+done
 
 echo "# 卸载 — ${APP_LABEL:-未知应用}"
 echo

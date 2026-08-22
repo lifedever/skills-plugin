@@ -12,7 +12,7 @@ set -o pipefail
 
 MAU_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -f "$MAU_LIB_DIR/lib.sh" ]; then
-  echo "错误: 未找到 lib.sh（应与 list-apps.sh 同目录: $MAU_LIB_DIR）" >&2
+  echo "错误: 未找到 lib.sh（应与 list-apps.sh 同目录: ${MAU_LIB_DIR}）" >&2
   exit 1
 fi
 # shellcheck source=lib.sh
