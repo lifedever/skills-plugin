@@ -12,7 +12,24 @@ Just ask:
 
 > 卸载 Slack / uninstall Slack cleanly / 帮我把这个 app 删干净
 
-Or run the scripts directly:
+Want to browse what's installed? It lists **everything**, alphabetically:
+
+```bash
+bash list-apps.sh                 # every app, A–Z
+bash list-apps.sh --sort used     # by last used, oldest first
+bash list-apps.sh --sort size     # by size, largest first
+bash list-apps.sh --all           # include /System apps (not removable)
+```
+
+It's an inventory, not a set of suggestions — nothing in it implies an app should
+go.
+
+⚠️ **`no record` means Spotlight has no last-used date for that app — not that it
+is unused.** Xcode and the Office apps commonly show it despite daily use. A date
+marked `~` is inferred from the preferences file, not a real usage record. Verify
+before removing anything.
+
+Or run the scan/uninstall scripts directly:
 
 `scan.sh` takes an **exact** app name, bundle id, or path — it does no fuzzy
 matching, so that "did you mean Chrome or Chrome Canary?" stays a question someone

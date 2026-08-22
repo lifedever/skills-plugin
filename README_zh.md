@@ -41,7 +41,7 @@
 | 🚀 | `dev-launcher` | 生成 `dev.sh` 启动脚本，一键拉起前后端，附带交互式控制（重启 / 状态 / 退出）。 |
 | 📐 | `diagram-pro` | 交付级业务流程图 / 技术架构图：手写 SVG 装进自包含 HTML，draw.io 视觉语法（标准形状 + 线性图标 + 必备图例），自带预览工具栏（缩放 / 网格 / PNG@2x / 纯净导出），交付前强制渲染回看校验。投标、汇报、文档配图用，Mermaid 撑不住排版的场合。 |
 | 🌍 | `localize` | 把单条内容变更并行同步到项目里所有语言文件，用子 Agent 加速。 |
-| 🗑️ | `mac-app-uninstall` | 卸载 macOS 应用**并清干净全部残留**——可审计的 AppCleaner / CleanMyMac 替代品。把每一项残留分为「可安全删 / 待你确认 / 共享禁删」三档，覆盖 launchd 任务、特权 helper 和系统扩展，全部移入废纸篓可恢复。绝不执行 `sudo`，绝不执行 `rm`。 |
+| 🗑️ | `mac-app-uninstall` | 列出所有已安装应用，并把选中的**卸载干净、不留残留**——可审计的 AppCleaner / CleanMyMac 替代品。把每一项残留分为「可安全删 / 待你确认 / 共享禁删」三档，覆盖 launchd 任务、特权 helper 和系统扩展，全部移入废纸篓可恢复。绝不执行 `sudo`，绝不执行 `rm`。 |
 | 💾 | `mac-cleanup-disk` | macOS 磁盘维护流程，基于 [`tw93/mole`](https://github.com/tw93/mole)。dry-run 优先，删除前必须用户文字确认。 |
 | 🧠 | `mac-cleanup-memory` | 诊断 macOS 内存压力——系统快照、TOP 内存大户、Swap / 压缩器分析。**纯诊断**，绝不主动 kill 进程。 |
 | ♻️ | `mac-cleanup-process` | 扫描 macOS 僵尸 / 卡死进程（MCP server 孤儿、过期 dev server、老 Claude 会话等），给出建议的 kill 命令。**纯诊断**。 |

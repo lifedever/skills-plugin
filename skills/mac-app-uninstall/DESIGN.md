@@ -48,6 +48,58 @@ The corollary for step 4 in SKILL.md: when the agent finds an extra leftover, it
 must **append it to the manifest**, never `trash` it directly. Appending keeps the
 allow-list, the Apple/Setapp protection and the shared-tier refusal in the path.
 
+## Why lib.sh exists
+
+`scan.sh` and `list-apps.sh` both need the app census and the same Info.plist
+handling (including the iOS-wrapper case). A second copy would drift, and the
+half that drifts is the half that quietly stops finding things. So the census,
+`info_plist_for`, the escaping helpers and `path_is_manifest_safe` live in
+`lib.sh` and are sourced by both.
+
+`uninstall.sh` deliberately does **not** source it: it is the enforcement layer
+and should share as little as possible with the code that decides what to
+propose. Its ERE escaping is a duplicated one-liner for that reason.
+
+## list-apps.sh is an inventory, not a recommender
+
+The first version defaulted to "least recently used first" and `--limit 25`. Both
+were wrong, and the user said so: it turned a browsable list into a set of
+implicit removal suggestions, and it hid most of the machine.
+
+The point of the list is that **the user often does not know the app's name**.
+They browse to find it. Any default that sorts by "how stale" or truncates the
+tail is answering a question they did not ask, and quietly steering the decision.
+
+So: alphabetical by default (implies nothing), no limit by default (shows
+everything), `--sort used|size` available when someone actually wants that view.
+SKILL.md forbids the agent from truncating the output or nominating candidates.
+
+## list-apps.sh: two traps worth knowing
+
+**`mdfind` is safe here, unlike in `scan.sh`.** The query is a fixed literal with
+no user input, so the injection surface that got Spotlight removed from target
+resolution does not exist. It is also the only practical way to get last-used
+dates for the whole machine at once — one call takes ~50ms, versus an `mdls` per
+app. Its output is `"<path>   kMDItemLastUsedDate = <value>"` and paths contain
+spaces, so the split keys off the attribute name rather than whitespace.
+
+**"No last-used date" does not mean "unused."** Spotlight has no
+`kMDItemLastUsedDate` for a meaningful minority of apps — on the dev machine that
+included Xcode and all of Microsoft Office, which are obviously in use. Printing
+those as "never" would actively invite deleting an app in daily use, so:
+
+- they are labelled **no record**, with the ambiguity spelled out in the header
+- when the date is missing, the mtime of `~/Library/Preferences/<bid>.plist` is
+  used as a proxy (most apps write prefs on quit) and marked `~` for inferred
+- SKILL.md instructs the agent never to nominate a top-of-list app as safe to
+  delete on that basis alone
+
+This dropped the "no record" count from 10 to 7 on the dev machine, and the three
+it resolved were real usage.
+
+**Sizes are opt-in.** `du` across every bundle takes ~7s (Xcode alone is 9GB), so
+`--size` is a flag rather than the default.
+
 ## Census first
 
 The census (every installed app: bundle id, name, path) is built before anything
@@ -277,6 +329,8 @@ Run these after any change to the tiering logic. All are read-only except the sa
 | Network app (`Surge`) | launchd jobs + PrivilegedHelperTools + system extension all reported under 🔐 |
 | Hostile manifest | every out-of-root path refused |
 | Sandbox dir under `~/Library` | actually moved to Trash, idempotent on re-run |
+| `list-apps.sh` on a machine with Setapp | no duplicate rows (search dirs overlap; census dedupes) |
+| An app with no Spotlight date but a prefs file | shows an inferred `~` date, not "never" |
 | `scan.sh '****'` / `'????'` / `'plist'` / quote payload | resolves nothing, ~2s, no hang |
 | Manifest hand-edited to add `/Applications/Safari.app` | refused as protected (read from its real bundle id) |
 | Manifest hand-edited to add `~/Documents` | refused, outside allowed roots |

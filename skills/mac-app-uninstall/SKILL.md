@@ -1,6 +1,6 @@
 ---
 name: mac-app-uninstall
-description: Uninstall a macOS app and every leftover it left behind — a scriptable replacement for AppCleaner / CleanMyMac. Scans ~/Library, /Library, launchd jobs, privileged helpers, system extensions and installer receipts, then tiers each finding into safe / review / shared-do-not-touch before moving anything to the Trash. Use this whenever the user wants to remove, uninstall, or delete an application, or clean up the residue of an app they already deleted. Trigger words "uninstall app", "remove app", "delete app", "uninstall cleanly", "remove leftovers", "app leftovers", "appcleaner", "app cleaner", "cleanmymac", "get rid of this app", "purge app", "卸载应用", "卸载软件", "删除应用", "删除软件", "彻底卸载", "卸载干净", "干净卸载", "清理残留", "应用残留", "残留文件", "卸载不干净". Everything goes to the Trash and stays recoverable; the skill never runs sudo and never runs rm. Sister skills mac-cleanup-disk (system-wide cache cleanup), mac-cleanup-process (processes).
+description: Browse installed macOS applications and uninstall any of them together with every leftover they left behind — a scriptable replacement for AppCleaner / CleanMyMac. Also use this to simply LIST what is installed, since choosing what to remove usually starts with browsing the full inventory. Scans ~/Library, /Library, launchd jobs, privileged helpers, system extensions and installer receipts, then tiers each finding into safe / review / shared-do-not-touch before moving anything to the Trash. Trigger words for listing "list installed apps", "list all apps", "list my apps", "what apps do I have", "what's installed", "show installed applications", "app inventory", "installed applications", "which apps are installed", "列出所有应用", "列出所有 app", "列一下我装的软件", "我装了哪些软件", "有哪些应用", "应用列表", "已安装的应用", "看看装了什么", "所有已安装的 app". Trigger words for removal "uninstall app", "remove app", "delete app", "uninstall cleanly", "remove leftovers", "app leftovers", "appcleaner", "app cleaner", "cleanmymac", "get rid of this app", "purge app", "卸载应用", "卸载软件", "删除应用", "删除软件", "彻底卸载", "卸载干净", "干净卸载", "清理残留", "应用残留", "残留文件", "卸载不干净". Everything goes to the Trash and stays recoverable; the skill never runs sudo and never runs rm. Sister skills mac-cleanup-disk (system-wide cache cleanup), mac-cleanup-process (processes).
 ---
 
 # mac-app-uninstall
@@ -17,7 +17,7 @@ You do the judgement, the scripts do the enforcement:
 
 | You (the agent) | The scripts |
 |---|---|
-| Work out *which* app the user means; ask when ambiguous | Enumerate leftovers across ~20 known locations |
+| Work out *which* app the user means — ask, never guess | Inventory installed apps and enumerate leftovers |
 | Optionally hunt for extra leftovers by name (step 4) | Decide ownership when apps nest in each other's namespaces |
 | Explain, summarise, get consent | Enforce the path allow-list, Apple/Setapp protection, Trash-only |
 
@@ -25,19 +25,48 @@ You do the judgement, the scripts do the enforcement:
 
 ## 0. Pre-flight
 
-`/usr/bin/trash` ships with macOS 14+. Both scripts are pure base-system bash; nothing to install.
+`/usr/bin/trash` ships with macOS 14+. The scripts are pure base-system bash; nothing to install.
 
 `mole` is optional — `mo uninstall --list` gives a JSON app inventory with a Homebrew/Setapp/App source field. **Never use `mo uninstall` to remove anything**: with an app argument it doesn't list what it will delete and it blocks on a `[y/N]` prompt, so there is nothing to audit.
 
 ## 1. Identify the app
 
-If the user gave anything less than an exact name or bundle id, resolve it *before* scanning:
+The user often does **not** know the app's name, or has not said which one they
+mean. Never guess, and never narrow the field for them.
+
+**If they named something specific**, resolve it before scanning:
 
 ```bash
 ls /Applications ~/Applications 2>/dev/null | grep -i "<what they said>"
 ```
 
-If more than one plausible match comes back, **ask which one**. Do not pick for them — removing the wrong app's data is not recoverable from the user's point of view, even if the files are in the Trash.
+More than one plausible match? **Ask which one.**
+
+**If they want to see what's installed** — "列出所有 app", "what do I have",
+"我看看有哪些", or anything else short of naming one — show the whole inventory:
+
+```bash
+bash "${CLAUDE_SKILL_DIR}/list-apps.sh"                  # every app, A–Z
+bash "${CLAUDE_SKILL_DIR}/list-apps.sh" --sort used      # by last used, oldest first
+bash "${CLAUDE_SKILL_DIR}/list-apps.sh" --sort size      # by size, largest first
+```
+
+Read-only. Rules for presenting it:
+
+- **Show every row.** Do not truncate, do not "show the interesting ones", do not
+  add `--limit`. The user is browsing; a filtered list hides the app they were
+  looking for. If it's long, it's long.
+- **Do not nominate candidates.** Not "these look unused", not "you could remove
+  these". Sorting by last-used is a *view*, not a recommendation. The user decides
+  what goes; you are the inventory, not the advisor.
+- **Only sort by last-used if they ask for it.** Alphabetical is the default
+  precisely because it implies nothing.
+- **no record** means Spotlight has no last-used date — **not** that the app is
+  unused. Xcode and the Office apps land there on machines where they're in daily
+  use. A date marked `~` is inferred from the preferences file, not a usage record.
+  State this accurately if the column comes up.
+
+Then wait. Act on the app the user names, not the one you would have picked.
 
 ## 2. Scan
 
@@ -148,7 +177,9 @@ Anything the report marked 🚫 in this section is shared (Microsoft AutoUpdate 
 
 ## Related files
 
+- `list-apps.sh` — read-only inventory, least recently used first
 - `scan.sh` — read-only scanner and tiering engine
+- `lib.sh` — shared helpers + the app census, sourced by both
 - `uninstall.sh` — Trash executor, path allow-list, post-delete verification
 - `DESIGN.md` — why the tiering and the division of labour work this way
 - `README.md` — user-facing docs

@@ -43,68 +43,16 @@ for tool in plutil find du awk sed grep; do
   fi
 done
 
-# ===== Helpers =====
-
-# Locate a bundle's Info.plist. iOS/iPadOS apps installed on Apple Silicon
-# ("Designed for iPad") are wrappers — the real bundle sits behind the
-# WrappedBundle symlink and puts Info.plist at its root, not under Contents/.
-# Without this, those apps report an unknown bundle id and every leftover lookup
-# silently finds nothing.
-info_plist_for() {
-  local app="$1"
-  if [ -f "$app/Contents/Info.plist" ]; then
-    printf '%s' "$app/Contents/Info.plist"
-  elif [ -f "$app/WrappedBundle/Info.plist" ]; then
-    printf '%s' "$app/WrappedBundle/Info.plist"
-  fi
-}
-
-# plutil-based Info.plist read. Empty string on any failure.
-plist_get() {
-  local plist="$1" key="$2" val
-  val="$(plutil -extract "$key" raw -o - "$plist" 2>/dev/null)" || return 0
-  # plutil emits "<stdin>" style errors to stdout in some versions; guard.
-  case "$val" in
-    *"Could not extract"* | *"is not a valid"*) return 0 ;;
-  esac
-  printf '%s' "$val"
-}
-
-# Human-readable size of a path. "?" when unreadable.
-path_size() {
-  local p="$1" kb
-  kb="$(du -sk "$p" 2>/dev/null | awk '{print $1}')"
-  [ -z "$kb" ] && { printf '?'; return 0; }
-  awk -v k="$kb" 'BEGIN{
-    if (k < 1024) printf "%dKB", k;
-    else if (k < 1048576) printf "%.1fMB", k/1024;
-    else printf "%.2fGB", k/1048576;
-  }'
-}
-
-# Lowercase without relying on bash 4 (macOS ships bash 3.2).
-lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
-
-# Escape glob metacharacters for find -name/-iname. Without this, an app named
-# "Foo [2024]" matches nothing, and a hostile or careless "****" expands to match
-# EVERYTHING under ~/Library — measured at 8461 paths on the dev machine, all of
-# which would land in the review tier and become removable with --tier all.
-escape_glob() { printf '%s' "$1" | sed 's/[][*?\\]/\\&/g'; }
-
-# Escape ERE metacharacters for pgrep -f, whose pattern is a regex. A bundle id
-# of ".*" would otherwise match every process on the machine.
-escape_ere() { printf '%s' "$1" | sed 's/[][^$.*+?(){}|\\]/\\&/g'; }
-
-# A path is unsafe for the TSV manifest if it contains a tab or newline.
-# We surface these instead of silently dropping them.
-# NB: must use $'\t' / $'\n' — $(printf '\n') strips the trailing newline in
-# command substitution, collapsing the pattern to `*` which matches everything.
-path_is_manifest_safe() {
-  case "$1" in
-    *$'\t'* | *$'\n'*) return 1 ;;
-    *) return 0 ;;
-  esac
-}
+# ===== Shared helpers =====
+# Sourced so scan.sh and list-apps.sh cannot drift apart on how an app bundle is
+# read or how the census is built.
+MAU_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -f "$MAU_LIB_DIR/lib.sh" ]; then
+  echo "ERROR: lib.sh not found next to scan.sh (looked in $MAU_LIB_DIR)" >&2
+  exit 1
+fi
+# shellcheck source=lib.sh
+. "$MAU_LIB_DIR/lib.sh"
 
 # ===== Step 1: Census every installed app =====
 # Built FIRST, because everything downstream depends on it: resolving the target,
@@ -120,23 +68,7 @@ path_is_manifest_safe() {
 CENSUS_FILE="$(mktemp -t mau_census)"
 trap 'rm -f "$CENSUS_FILE"' EXIT
 
-census_count=0
-for d in /Applications "$HOME/Applications" /Applications/Setapp \
-         /Applications/Utilities /System/Applications /System/Applications/Utilities; do
-  [ -d "$d" ] || continue
-  while IFS= read -r app; do
-    [ -n "$app" ] || continue
-    app_plist="$(info_plist_for "$app")"
-    bid=""
-    [ -n "$app_plist" ] && bid="$(plist_get "$app_plist" CFBundleIdentifier)"
-    nm="$(basename "$app" .app)"
-    # Tabs/newlines in an app name would corrupt the census records.
-    path_is_manifest_safe "$app" || continue
-    path_is_manifest_safe "$nm" || continue
-    printf '%s\t%s\t%s\n' "$bid" "$nm" "$app" >> "$CENSUS_FILE"
-    census_count=$((census_count + 1))
-  done < <(find "$d" -maxdepth 2 -name "*.app" -prune 2>/dev/null)
-done
+census_count="$(build_census "$CENSUS_FILE")"
 
 # ===== Step 2: Resolve the target =====
 # Only two forms are accepted: a path to a bundle, or an exact bundle id / app
