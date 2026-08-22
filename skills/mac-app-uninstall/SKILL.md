@@ -53,9 +53,15 @@ bash "${CLAUDE_SKILL_DIR}/list-apps.sh" --sort size      # by size, largest firs
 
 Read-only. Rules for presenting it:
 
+- **Reproduce the entire table in your own reply text.** The Bash tool's output is
+  collapsed in the UI — the user sees `… +103 lines (ctrl+o to expand)`, not the
+  list. Only your message text is shown directly. Writing "here is the list" above
+  a collapsed block shows them *nothing*, and claiming "the full list is above" is
+  then simply false. Copy every row out.
 - **Show every row.** Do not truncate, do not "show the interesting ones", do not
   add `--limit`. The user is browsing; a filtered list hides the app they were
-  looking for. If it's long, it's long.
+  looking for. If it's long, it's long — 94 rows of table is the correct answer to
+  "list all my apps".
 - **Do not nominate candidates.** Not "these look unused", not "you could remove
   these". Sorting by last-used is a *view*, not a recommendation. The user decides
   what goes; you are the inventory, not the advisor.
@@ -80,7 +86,9 @@ If it reports **not installed**, that's fine for leftover-only cleanup — pass 
 
 ## 3. Present the report
 
-**Paste the report to the user**, then summarise in a line or two: how much the safe tier frees, and whether anything landed in the shared or sudo sections.
+**Copy the report into your reply text**, then summarise in a line or two: how much the safe tier frees, and whether anything landed in the shared or sudo sections.
+
+Same reason as the inventory: tool output is collapsed in the UI. If you only run the command and comment on it, the user is approving a deletion list they cannot see. That is the one thing this skill must never let happen.
 
 - **Never** move an item between tiers on your own judgement
 - **Never** add paths the script did not find (except via step 4, explicitly)
@@ -139,7 +147,7 @@ bash "${CLAUDE_SKILL_DIR}/uninstall.sh" --manifest "<path>" --tier safe --execut
 
 ## 6. Report the verification
 
-`--execute` ends with a verification block. **Show it and read it** — don't just say "done":
+`--execute` ends with a verification block. **Copy it into your reply** (it is collapsed in the UI otherwise) and read it — don't just say "done":
 
 - `all N target(s) gone from their original locations`
 - `all N parent and system directories intact` — proof nothing above the targets was touched
@@ -169,11 +177,12 @@ Anything the report marked 🚫 in this section is shared (Microsoft AutoUpdate 
 ## Core guards
 
 1. **Trash only.** Never `rm` a user file to "finish the job", never offer a permanent delete, never offer to empty the Trash. Recoverability is the entire point.
-2. **Never delete outside the two scripts.** The allow-list and Apple/Setapp protection live in `uninstall.sh`; a hand-written `trash` command has neither.
-3. **Never run sudo**, even if asked. Give the command instead.
-4. **Never touch the 🚫 shared tier.** If the user insists, name the app that owns it and let them do it by hand.
-5. **Never present a blocked app's leftovers as removable**, even though the scan still lists them for information.
-6. **Stop on verification failure.** A failed verification means the machine is in an unexpected state; further commands make it harder to diagnose.
+2. **Anything the user must see goes in your reply text.** Inventories, scan reports, verification blocks. Bash output is collapsed in the UI; never say "above" about something the user cannot see, and never ask them to confirm a list you only ran but did not reproduce.
+3. **Never delete outside the two scripts.** The allow-list and Apple/Setapp protection live in `uninstall.sh`; a hand-written `trash` command has neither.
+4. **Never run sudo**, even if asked. Give the command instead.
+5. **Never touch the 🚫 shared tier.** If the user insists, name the app that owns it and let them do it by hand.
+6. **Never present a blocked app's leftovers as removable**, even though the scan still lists them for information.
+7. **Stop on verification failure.** A failed verification means the machine is in an unexpected state; further commands make it harder to diagnose.
 
 ## Related files
 

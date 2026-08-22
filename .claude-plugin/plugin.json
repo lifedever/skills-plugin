@@ -1,7 +1,7 @@
 {
   "name": "lifedever",
   "description": "lifedever's curated Claude Code skills \u2014 macOS dev utilities, debug workflows, icon generation, diagramming, localization, and system diagnostics.",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "author": {
     "name": "lifedever",
     "url": "https://github.com/lifedever"
