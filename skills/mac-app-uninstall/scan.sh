@@ -8,8 +8,8 @@ set -o pipefail
 
 # ===== Infrastructure =====
 timestamp="$(date +%Y-%m-%d-%H%M%S)"
-output_dir="$HOME/Downloads"
-mkdir -p "$output_dir"
+# Output dir is resolved after lib.sh is sourced (mau_out_dir lives there).
+output_dir=""
 
 # Written by report(); the manifest is what uninstall.sh consumes.
 report_file=""
@@ -460,9 +460,14 @@ fi
 
 # ===== Step 7: Emit the report =====
 
-safe_name="$(printf '%s' "$APP_NAME" | tr -c '[:alnum:]._-' '-')"
-report_file="$output_dir/mac-app-uninstall-$safe_name-$timestamp.md"
-manifest_file="$output_dir/mac-app-uninstall-$safe_name-$timestamp.tsv"
+# One folder per uninstall, so a report, its manifest and (later) the execution
+# result stay together instead of scattering across ~/Downloads.
+safe_name="$(mau_safe_name "$APP_NAME")"
+[ -n "$safe_name" ] || safe_name="app"
+output_dir="$(mau_out_dir)/$safe_name-$timestamp"
+mkdir -p "$output_dir"
+report_file="$output_dir/report.md"
+manifest_file="$output_dir/manifest.tsv"
 
 # grep -c prints 0 AND exits 1 when nothing matches, so `|| echo 0` would emit
 # two zeros. Swallow the exit status instead.

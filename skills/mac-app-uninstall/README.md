@@ -12,6 +12,10 @@ Just ask:
 
 > 卸载 Slack / uninstall Slack cleanly / 帮我把这个 app 删干净
 
+All output lands under `~/Downloads/mac-app-uninstall/` — the inventory as a
+Markdown file, and one folder per uninstall holding its report, manifest and
+result. Wide tables belong in a file, not a terminal.
+
 Want to browse what's installed? It lists **everything**, alphabetically:
 
 ```bash
@@ -105,4 +109,4 @@ leftovers it will delete.
   by bundle id. Ask the assistant to sweep by name — it will confirm each hit with
   you and route them through the same safety gates.
 - If two copies of the same app are installed, nothing is marked safe — the data is live for the other copy.
-- Reports and manifests accumulate in `~/Downloads`; delete them whenever.
+- Output accumulates in `~/Downloads/mac-app-uninstall/`; delete it whenever.

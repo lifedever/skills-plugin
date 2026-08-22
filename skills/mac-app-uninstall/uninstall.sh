@@ -158,7 +158,8 @@ REJECTED_FILE="$(mktemp -t mau_rejected)"
 PROTECTED_FILE="$(mktemp -t mau_protected)"
 MISSING_FILE="$(mktemp -t mau_missing)"
 ANCESTORS_FILE="$(mktemp -t mau_ancestors)"
-trap 'rm -f "$TARGETS_FILE" "$REJECTED_FILE" "$PROTECTED_FILE" "$MISSING_FILE" "$ANCESTORS_FILE"' EXIT
+OUTCOMES_FILE="$(mktemp -t mau_outcomes)"
+trap 'rm -f "$TARGETS_FILE" "$REJECTED_FILE" "$PROTECTED_FILE" "$MISSING_FILE" "$ANCESTORS_FILE" "$OUTCOMES_FILE"' EXIT
 
 while IFS=$'\t' read -r tier path reason; do
   case "$tier" in
@@ -303,9 +304,11 @@ while IFS=$'\t' read -r tier path; do
   if /usr/bin/trash "$path" 2>/dev/null; then
     ok=$((ok + 1))
     printf '  ✔ %s\n' "$path"
+    printf 'ok\t%s\n' "$path" >> "$OUTCOMES_FILE"
   else
     fail=$((fail + 1))
     printf '  ✘ %s (trash failed — check permissions or Full Disk Access)\n' "$path" >&2
+    printf 'fail\t%s\n' "$path" >> "$OUTCOMES_FILE"
   fi
 done < "$TARGETS_FILE"
 
@@ -375,6 +378,57 @@ else
   printf '  ⚠ %s not found there under the same name. Finder renames on collision,\n' "$inconclusive"
   printf '    so this is inconclusive rather than lost — check the Trash in Finder.\n'
 fi
+
+# ===== Archive =====
+# Written next to the manifest, so report.md / manifest.tsv / result.md for one
+# uninstall live in the same folder. Rebuilt from recorded state rather than by
+# capturing stdout — a tee'd process substitution can be cut off at exit.
+RESULT_FILE="$(dirname "$MANIFEST")/result.md"
+{
+  printf '# Uninstall result — %s\n\n' "${APP_LABEL:-unknown app}"
+  printf '| | |\n|---|---|\n'
+  printf '| When | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+  printf '| Tier | `%s` |\n' "$TIER"
+  printf '| Manifest | `%s` |\n' "$MANIFEST"
+  printf '| Moved to Trash | %s |\n' "$ok"
+  printf '| Failed | %s |\n\n' "$fail"
+
+  printf '## Moved to Trash\n\n'
+  if [ -s "$OUTCOMES_FILE" ]; then
+    while IFS=$'\t' read -r st pth; do
+      [ "$st" = "ok" ] || continue
+      printf -- '- `%s`\n' "$pth"
+    done < "$OUTCOMES_FILE"
+  else
+    printf '_none_\n'
+  fi
+  printf '\n'
+
+  if [ "$fail" -gt 0 ]; then
+    printf '## Failed\n\n'
+    while IFS=$'\t' read -r st pth; do
+      [ "$st" = "fail" ] || continue
+      printf -- '- `%s`\n' "$pth"
+    done < "$OUTCOMES_FILE"
+    printf '\n'
+  fi
+
+  printf '## Verification\n\n'
+  printf -- '- Targets gone from original locations: %s\n' \
+    "$([ "$still" -eq 0 ] && echo "yes (all $ok)" || echo "NO — $still still present")"
+  printf -- '- Parent and system directories intact: %s\n' \
+    "$([ "$missing_anc" -eq 0 ] && echo "yes (all $n_anc checked)" || echo "NO — $missing_anc missing")"
+  printf -- '- Confirmed in ~/.Trash: %s of %s\n' "$found" "$ok"
+  [ "$inconclusive" -gt 0 ] && printf -- '  (%s not found under the same name; Finder renames on collision)\n' "$inconclusive"
+  printf '\n'
+
+  if [ "$verify_fail" -gt 0 ]; then
+    printf '**VERIFICATION FAILED — %s problem(s).**\n\n' "$verify_fail"
+  fi
+  printf '_Everything listed above is recoverable from the Trash until it is emptied._\n'
+} > "$RESULT_FILE"
+
+printf '\n[saved] %s\n' "$RESULT_FILE" >&2
 
 echo
 if [ "$verify_fail" -gt 0 ]; then

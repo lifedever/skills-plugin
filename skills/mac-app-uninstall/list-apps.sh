@@ -169,6 +169,10 @@ case "$SORT_BY" in
   size) order="size, largest first" ;;
 esac
 
+OUT_DIR="$(mau_out_dir)"
+OUT_FILE="$OUT_DIR/apps-$(date +%Y-%m-%d-%H%M%S).md"
+
+{
 echo "# Installed applications"
 echo
 printf '**%s apps**, sorted by %s.' "$total_rows" "$order"
@@ -220,3 +224,6 @@ if [ "$LIMIT" -gt 0 ] && [ "$total_rows" -gt "$LIMIT" ]; then
   printf '_Showing %s of %s — %s hidden by `--limit`._\n\n' "$shown" "$total_rows" "$((total_rows - shown))"
 fi
 printf 'To inspect one: `scan.sh "<app name or bundle id>"`\n'
+} | tee "$OUT_FILE"
+
+printf '\n[saved] %s\n' "$OUT_FILE" >&2

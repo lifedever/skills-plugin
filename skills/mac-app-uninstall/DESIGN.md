@@ -60,6 +60,32 @@ half that drifts is the half that quietly stops finding things. So the census,
 and should share as little as possible with the code that decides what to
 propose. Its ERE escaping is a duplicated one-liner for that reason.
 
+## Output is files, not terminal text
+
+Everything goes to `~/Downloads/mac-app-uninstall/`, one folder per uninstall:
+
+```
+apps-<ts>.md              inventory
+<App>-<ts>/report.md      scan report
+<App>-<ts>/manifest.tsv   what uninstall.sh acts on
+<App>-<ts>/result.md      what was trashed + verification
+```
+
+Two problems forced this, both reported from real use:
+
+1. **A ~90-row Markdown table is unreadable in a terminal.** It wraps and the
+   columns stop lining up.
+2. **The Bash tool's output is collapsed in the UI** — the user sees
+   `… +103 lines (ctrl+o to expand)`. An agent that runs the command and says
+   "the list is above" has shown them nothing, and if it then asks them to confirm
+   a deletion, they are approving a list they cannot see. That is the failure this
+   skill exists to prevent.
+
+So: wide tables go to a file and the agent hands over the path; narrow content
+(the verification block, a handful of paths as bullets) goes in the reply text.
+`result.md` is rebuilt from recorded state rather than by tee'ing stdout, because
+a `tee` through a process substitution can be cut off when the script exits.
+
 ## list-apps.sh is an inventory, not a recommender
 
 The first version defaulted to "least recently used first" and `--limit 25`. Both

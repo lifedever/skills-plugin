@@ -23,6 +23,19 @@ You do the judgement, the scripts do the enforcement:
 
 `scan.sh` deliberately does **no** fuzzy matching — it takes an exact bundle id, exact app name, or a path. Guessing is your job, because you can ask a clarifying question and it cannot.
 
+## Where output goes
+
+Everything lands under `~/Downloads/mac-app-uninstall/`:
+
+```
+apps-<ts>.md              the installed-app inventory
+<App>-<ts>/report.md      scan report for one app
+<App>-<ts>/manifest.tsv   what uninstall.sh acts on
+<App>-<ts>/result.md      what was trashed + verification
+```
+
+One folder per uninstall, so a run's report, manifest and result stay together.
+
 ## 0. Pre-flight
 
 `/usr/bin/trash` ships with macOS 14+. The scripts are pure base-system bash; nothing to install.
@@ -51,17 +64,17 @@ bash "${CLAUDE_SKILL_DIR}/list-apps.sh" --sort used      # by last used, oldest 
 bash "${CLAUDE_SKILL_DIR}/list-apps.sh" --sort size      # by size, largest first
 ```
 
-Read-only. Rules for presenting it:
+Read-only. It writes the table to `~/Downloads/mac-app-uninstall/apps-<ts>.md`
+and prints the path.
 
-- **Reproduce the entire table in your own reply text.** The Bash tool's output is
-  collapsed in the UI — the user sees `… +103 lines (ctrl+o to expand)`, not the
-  list. Only your message text is shown directly. Writing "here is the list" above
-  a collapsed block shows them *nothing*, and claiming "the full list is above" is
-  then simply false. Copy every row out.
-- **Show every row.** Do not truncate, do not "show the interesting ones", do not
-  add `--limit`. The user is browsing; a filtered list hides the app they were
-  looking for. If it's long, it's long — 94 rows of table is the correct answer to
-  "list all my apps".
+**Give the user that file path — do not paste the table into chat.** A 90-row
+Markdown table wraps and misaligns in a terminal, and the Bash tool's output is
+collapsed anyway (`… +103 lines`). The file renders properly and they can keep it.
+Say how many apps there are, hand over the path, and stop.
+
+- **Never `--limit`.** The file holds everything; the user is browsing for an app
+  they may not be able to name. Truncating hides the one they wanted.
+- **Never summarise it into "the interesting ones"** in place of the path.
 - **Do not nominate candidates.** Not "these look unused", not "you could remove
   these". Sorting by last-used is a *view*, not a recommendation. The user decides
   what goes; you are the inventory, not the advisor.
@@ -86,9 +99,18 @@ If it reports **not installed**, that's fine for leftover-only cleanup — pass 
 
 ## 3. Present the report
 
-**Copy the report into your reply text**, then summarise in a line or two: how much the safe tier frees, and whether anything landed in the shared or sudo sections.
+The report goes to `~/Downloads/mac-app-uninstall/<App>-<ts>/report.md`, next to the manifest.
 
-Same reason as the inventory: tool output is collapsed in the UI. If you only run the command and comment on it, the user is approving a deletion list they cannot see. That is the one thing this skill must never let happen.
+**Give the path, and in chat list the ✅ safe paths as a plain bullet list** — not as a table, which misaligns in a terminal:
+
+```
+- ~/Library/Application Support/com.foo.bar   (7.6 MB)
+- ~/Library/Caches/com.foo.bar                (18.9 MB)
+```
+
+Then state the totals: how much the safe tier frees, and whether anything landed in the shared or sudo sections.
+
+**The user must be able to see what they are approving.** Never ask them to confirm a deletion on the strength of a file they haven't opened — bullets in chat plus the file for detail. If the safe tier is large (say over 25 paths), give counts and the path, and tell them to open the report before confirming.
 
 - **Never** move an item between tiers on your own judgement
 - **Never** add paths the script did not find (except via step 4, explicitly)
@@ -147,7 +169,7 @@ bash "${CLAUDE_SKILL_DIR}/uninstall.sh" --manifest "<path>" --tier safe --execut
 
 ## 6. Report the verification
 
-`--execute` ends with a verification block. **Copy it into your reply** (it is collapsed in the UI otherwise) and read it — don't just say "done":
+`--execute` writes `result.md` into the same folder and ends with a verification block. That block is a few narrow lines, so **copy it into your reply verbatim** (tool output is collapsed otherwise) — don't just say "done":
 
 - `all N target(s) gone from their original locations`
 - `all N parent and system directories intact` — proof nothing above the targets was touched
@@ -177,7 +199,7 @@ Anything the report marked 🚫 in this section is shared (Microsoft AutoUpdate 
 ## Core guards
 
 1. **Trash only.** Never `rm` a user file to "finish the job", never offer a permanent delete, never offer to empty the Trash. Recoverability is the entire point.
-2. **Anything the user must see goes in your reply text.** Inventories, scan reports, verification blocks. Bash output is collapsed in the UI; never say "above" about something the user cannot see, and never ask them to confirm a list you only ran but did not reproduce.
+2. **Never say "above" about tool output — it is collapsed in the UI.** Wide tables (the inventory, the report) go to a file: give the path. Narrow content (verification block, a handful of paths) goes in your reply text as bullets. Either way the user must be able to actually see what they are approving; running a command and commenting on it does not count.
 3. **Never delete outside the two scripts.** The allow-list and Apple/Setapp protection live in `uninstall.sh`; a hand-written `trash` command has neither.
 4. **Never run sudo**, even if asked. Give the command instead.
 5. **Never touch the 🚫 shared tier.** If the user insists, name the app that owns it and let them do it by hand.
@@ -186,7 +208,7 @@ Anything the report marked 🚫 in this section is shared (Microsoft AutoUpdate 
 
 ## Related files
 
-- `list-apps.sh` — read-only inventory, least recently used first
+- `list-apps.sh` — read-only inventory, written to `~/Downloads/mac-app-uninstall/`
 - `scan.sh` — read-only scanner and tiering engine
 - `lib.sh` — shared helpers + the app census, sourced by both
 - `uninstall.sh` — Trash executor, path allow-list, post-delete verification

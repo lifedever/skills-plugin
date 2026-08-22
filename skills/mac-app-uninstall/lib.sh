@@ -67,6 +67,23 @@ path_is_manifest_safe() {
   esac
 }
 
+# All output lands in one folder under ~/Downloads rather than scattered across
+# it. Wide Markdown tables wrap and misalign in a terminal, so the readable copy
+# is always a file the user opens; stdout is for the agent.
+# Echoes the path, creating it if needed.
+mau_out_dir() {
+  local d="$HOME/Downloads/mac-app-uninstall"
+  mkdir -p "$d" 2>/dev/null
+  printf '%s' "$d"
+}
+
+# Turn an app name into something safe for a file or directory name. Keeps
+# non-ASCII (a folder called 微店 is fine and more readable than mangled ASCII);
+# only strips what the filesystem or a shell would choke on.
+mau_safe_name() {
+  printf '%s' "$1" | tr '/:' '__' | tr ' ' '-' | tr -d '\n\t'
+}
+
 # Directories searched for installed applications.
 #
 # /System/Applications is included deliberately: Apple's bundle ids must be in
