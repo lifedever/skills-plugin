@@ -10,7 +10,7 @@
 <p align="center">
   <a href="https://github.com/lifedever/skills-plugin/tags"><img src="https://img.shields.io/github/v/tag/lifedever/skills-plugin?style=flat-square&color=34D399&label=Latest" alt="Latest"></a>
   <a href="https://github.com/lifedever/skills-plugin/stargazers"><img src="https://img.shields.io/github/stars/lifedever/skills-plugin?style=flat-square&color=F59E0B&label=Stars" alt="Stars"></a>
-  <img src="https://img.shields.io/badge/skills-14-7C3AED?style=flat-square" alt="Skills">
+  <img src="https://img.shields.io/badge/skills-15-7C3AED?style=flat-square" alt="Skills">
   <img src="https://img.shields.io/badge/Claude%20Code-Plugin-FF6B35?style=flat-square" alt="Claude Code Plugin">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License"></a>
 </p>
@@ -27,9 +27,9 @@
 
 ## Highlights
 
-- **Fourteen curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, first-principles root-cause analysis, adversarial code review, deliverable-grade diagramming, memory / disk / process diagnostics, parallel localization, npm supply-chain checks, and a meta browser to find the right skill when you've forgotten what you have
+- **Fifteen curated skills** the author uses daily — Swift app scaffolding, icon generation, runtime debugging, first-principles root-cause analysis, adversarial code review, deliverable-grade diagramming, clean app uninstallation, memory / disk / process diagnostics, parallel localization, npm supply-chain checks, and a meta browser to find the right skill when you've forgotten what you have
 - **macOS-dev focused** — most skills target the everyday macOS workflow
-- **One command to install all fourteen** and they auto-update via the Claude Code plugin marketplace
+- **One command to install all fifteen** and they auto-update via the Claude Code plugin marketplace
 - **Namespaced** under `/lifedever:<skill>` so they never collide with other plugins
 
 ## Skills included
@@ -41,6 +41,7 @@
 | 🚀 | `dev-launcher` | Generate a `dev.sh` script that starts frontend + backend together with interactive controls. |
 | 📐 | `diagram-pro` | Deliverable-grade flowcharts and architecture diagrams as hand-written SVG in a self-contained HTML page — draw.io visual grammar, preview toolbar (zoom / grid / PNG@2x), and a mandatory render-and-inspect pass. For bids, decks, and docs, where a Mermaid sketch doesn't hold up. |
 | 🌍 | `localize` | Apply one content change across every language file in parallel using dispatched agents. |
+| 🗑️ | `mac-app-uninstall` | Uninstall a macOS app **and every leftover it left behind** — an auditable stand-in for AppCleaner / CleanMyMac. Tiers each finding into safe / review / shared-do-not-touch, covers launchd jobs, privileged helpers and system extensions, and moves everything to the Trash. Never runs `sudo`, never runs `rm`. |
 | 💾 | `mac-cleanup-disk` | macOS disk maintenance workflow built on top of [`tw93/mole`](https://github.com/tw93/mole). Dry-run first, requires text confirmation before any deletion. |
 | 🧠 | `mac-cleanup-memory` | Diagnose macOS memory pressure — system snapshot, top RAM consumers, Swap / Compressor analysis. Pure diagnostic, never kills processes on its own. |
 | ♻️ | `mac-cleanup-process` | Scan macOS for zombie / stuck processes (MCP server orphans, stale dev servers, long-lived Claude sessions, etc.) and suggest kill commands. Pure diagnostic. |
@@ -65,7 +66,7 @@ Most skills run as-is. A few need a one-time setup or an extra tool — install 
 | `debug-mode` | `node` (only for the optional HTTP log collector) | Already installed if you write JS/TS |
 | `diagram-pro` | Google Chrome (or any Chromium) for the headless render check; `Pillow` optional, for cropping | `brew install --cask google-chrome && pip3 install Pillow` |
 
-The remaining skills — `dev-launcher`, `localize`, `mac-cleanup-memory`, `mac-cleanup-process`, `root-cause`, `break-it`, `skill-scan` — need no setup.
+The remaining skills — `dev-launcher`, `localize`, `mac-app-uninstall`, `mac-cleanup-memory`, `mac-cleanup-process`, `root-cause`, `break-it`, `skill-scan` — need no setup.
 
 Each skill also detects its own missing prerequisites at runtime and prints a setup hint, so you can also just try one and follow the error message.
 

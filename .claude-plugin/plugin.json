@@ -1,7 +1,7 @@
 {
   "name": "lifedever",
   "description": "lifedever's curated Claude Code skills \u2014 macOS dev utilities, debug workflows, icon generation, diagramming, localization, and system diagnostics.",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "author": {
     "name": "lifedever",
     "url": "https://github.com/lifedever"
@@ -16,6 +16,7 @@
     "./skills/diagram-pro",
     "./skills/image-upload",
     "./skills/localize",
+    "./skills/mac-app-uninstall",
     "./skills/mac-cleanup-disk",
     "./skills/mac-cleanup-memory",
     "./skills/mac-cleanup-process",
