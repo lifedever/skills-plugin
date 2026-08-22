@@ -36,6 +36,11 @@ apps-<ts>.md              the installed-app inventory
 
 One folder per uninstall, so a run's report, manifest and result stay together.
 
+**The generated files are written in Chinese** and open automatically in Typora
+(falling back to the system default). Set `MAU_NO_OPEN=1` or pass `--no-open` to
+suppress opening — do that when running several scans in a row, so the user isn't
+buried in windows.
+
 ## 0. Pre-flight
 
 `/usr/bin/trash` ships with macOS 14+. The scripts are pure base-system bash; nothing to install.
@@ -64,16 +69,25 @@ bash "${CLAUDE_SKILL_DIR}/list-apps.sh" --sort used      # by last used, oldest 
 bash "${CLAUDE_SKILL_DIR}/list-apps.sh" --sort size      # by size, largest first
 ```
 
-Read-only. It writes the table to `~/Downloads/mac-app-uninstall/apps-<ts>.md`
-and prints the path.
+Read-only. It writes the table to `~/Downloads/mac-app-uninstall/apps-<ts>.md`,
+opens it in Typora, and prints the path.
 
 **Give the user that file path — do not paste the table into chat.** A 90-row
 Markdown table wraps and misaligns in a terminal, and the Bash tool's output is
 collapsed anyway (`… +103 lines`). The file renders properly and they can keep it.
-Say how many apps there are, hand over the path, and stop.
+Say how many apps there are, mention it has opened, and stop.
+
+The table has a **类别** column from `LSApplicationCategoryType` (~70% of apps
+declare it; the rest show `-`). It is a *category*, not a description — macOS has
+no per-app description field. Don't present it as one, and don't invent
+descriptions for the apps that show `-`.
 
 - **Never `--limit`.** The file holds everything; the user is browsing for an app
   they may not be able to name. Truncating hides the one they wanted.
+- **`--size` is the .app bundle only** — not what uninstalling would free. Never
+  present it as reclaimable space. Computing the real figure for every app means
+  `du` over ~700 leftover paths (~50s), which is why it isn't offered; the precise
+  number for a *single* app comes from `scan.sh`, tier by tier.
 - **Never summarise it into "the interesting ones"** in place of the path.
 - **Do not nominate candidates.** Not "these look unused", not "you could remove
   these". Sorting by last-used is a *view*, not a recommendation. The user decides
@@ -99,7 +113,7 @@ If it reports **not installed**, that's fine for leftover-only cleanup — pass 
 
 ## 3. Present the report
 
-The report goes to `~/Downloads/mac-app-uninstall/<App>-<ts>/report.md`, next to the manifest.
+The report goes to `~/Downloads/mac-app-uninstall/<App>-<ts>/report.md` (in Chinese, opened in Typora), next to the manifest.
 
 **Give the path, and in chat list the ✅ safe paths as a plain bullet list** — not as a table, which misaligns in a terminal:
 

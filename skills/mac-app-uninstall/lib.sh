@@ -77,11 +77,67 @@ mau_out_dir() {
   printf '%s' "$d"
 }
 
+# Open a generated Markdown file for reading. Typora renders tables properly,
+# which is the whole reason output goes to a file instead of the terminal; fall
+# back to the system default if it is not installed. Never fails the run — an
+# unopened file is a nuisance, a failed uninstall is not.
+mau_open_file() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  [ "${MAU_NO_OPEN:-0}" = "1" ] && return 0
+  open -a Typora "$f" 2>/dev/null || open "$f" 2>/dev/null || true
+  return 0
+}
+
 # Turn an app name into something safe for a file or directory name. Keeps
 # non-ASCII (a folder called 微店 is fine and more readable than mangled ASCII);
 # only strips what the filesystem or a shell would choke on.
 mau_safe_name() {
   printf '%s' "$1" | tr '/:' '__' | tr ' ' '-' | tr -d '\n\t'
+}
+
+# App category, in Chinese, from LSApplicationCategoryType.
+#
+# macOS has no per-app description field: kMDItemDescription is empty for every
+# app checked on the dev machine, and kMDItemCopyright is a copyright line, not a
+# description. The App Store requires this category, so it is the only structured
+# "what kind of thing is this" signal available offline — present on 61 of 87
+# apps here. Homebrew's cask `desc` is better prose but covers ~7 real apps, so
+# it is not worth the extra dependency.
+mau_category_zh() {
+  local app="$1" plist cat
+  plist="$(info_plist_for "$app")"
+  [ -n "$plist" ] || return 0
+  cat="$(plist_get "$plist" LSApplicationCategoryType)"
+  [ -n "$cat" ] || return 0
+  case "${cat##*.}" in
+    developer-tools)      printf '开发工具' ;;
+    utilities)            printf '实用工具' ;;
+    productivity)         printf '效率' ;;
+    business)             printf '商务' ;;
+    graphics-design)      printf '图形设计' ;;
+    photography)          printf '摄影' ;;
+    video)                printf '视频' ;;
+    music)                printf '音乐' ;;
+    entertainment)        printf '娱乐' ;;
+    social-networking)    printf '社交' ;;
+    education)            printf '教育' ;;
+    reference)            printf '参考' ;;
+    finance)              printf '财务' ;;
+    games | *games*)      printf '游戏' ;;
+    healthcare-fitness)   printf '健康健美' ;;
+    lifestyle)            printf '生活' ;;
+    medical)              printf '医疗' ;;
+    news)                 printf '新闻' ;;
+    sports)               printf '体育' ;;
+    travel)               printf '旅行' ;;
+    weather)              printf '天气' ;;
+    book)                 printf '图书' ;;
+    food-and-drink)       printf '美食' ;;
+    navigation)           printf '导航' ;;
+    magazines-newspapers) printf '报刊' ;;
+    *)                    printf '%s' "${cat##*.}" ;;
+  esac
 }
 
 # Directories searched for installed applications.

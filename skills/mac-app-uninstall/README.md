@@ -14,7 +14,8 @@ Just ask:
 
 All output lands under `~/Downloads/mac-app-uninstall/` — the inventory as a
 Markdown file, and one folder per uninstall holding its report, manifest and
-result. Wide tables belong in a file, not a terminal.
+result. Wide tables belong in a file, not a terminal. **Generated files are in
+Chinese and open in Typora automatically** (`--no-open` to suppress).
 
 Want to browse what's installed? It lists **everything**, alphabetically:
 
@@ -23,6 +24,7 @@ bash list-apps.sh                 # every app, A–Z
 bash list-apps.sh --sort used     # by last used, oldest first
 bash list-apps.sh --sort size     # by size, largest first
 bash list-apps.sh --all           # include /System apps (not removable)
+bash list-apps.sh --no-open       # don't open the file afterwards
 ```
 
 It's an inventory, not a set of suggestions — nothing in it implies an app should

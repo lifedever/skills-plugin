@@ -17,14 +17,15 @@ manifest_file=""
 
 usage() {
   cat >&2 <<'EOF'
-Usage: scan.sh <app name | bundle id | /path/to/App.app>
+用法: scan.sh <应用名 | bundle id | /path/to/App.app>
 
-Examples:
+示例:
   scan.sh Slack
   scan.sh com.tinyspeck.slackmacgap
   scan.sh "/Applications/Google Chrome.app"
 
-Read-only. Produces a tiered leftover report + a manifest for uninstall.sh.
+只读，不修改任何内容。生成分级残留报告 + 供 uninstall.sh 使用的清单，
+写入 ~/Downloads/mac-app-uninstall/ 并自动用 Typora 打开。
 EOF
 }
 
@@ -38,7 +39,7 @@ TARGET_INPUT="$*"
 # Pre-flight: these are all base-system tools, but fail loudly if absent.
 for tool in plutil find du awk sed grep; do
   if ! command -v "$tool" > /dev/null 2>&1; then
-    echo "ERROR: required tool '$tool' not found in PATH" >&2
+    echo "错误: 缺少必需的命令 '$tool'" >&2
     exit 1
   fi
 done
@@ -48,7 +49,7 @@ done
 # read or how the census is built.
 MAU_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [ ! -f "$MAU_LIB_DIR/lib.sh" ]; then
-  echo "ERROR: lib.sh not found next to scan.sh (looked in $MAU_LIB_DIR)" >&2
+  echo "错误: 未找到 lib.sh（应与 scan.sh 同目录: $MAU_LIB_DIR）" >&2
   exit 1
 fi
 # shellcheck source=lib.sh
@@ -121,7 +122,7 @@ BUNDLE_ID=""
 APP_NAME=""
 APP_VERSION=""
 APP_SIZE="-"
-INSTALL_SOURCE="Unknown"
+INSTALL_SOURCE="未知"
 
 if [ $APP_FOUND -eq 0 ]; then
   APP_PLIST="$(info_plist_for "$APP_PATH")"
@@ -158,19 +159,19 @@ add_warn() { GATE_WARN="${GATE_WARN}$1"$'\n'; }
 # 3a. Apple system apps are off limits.
 case "$BUNDLE_ID" in
   com.apple.*)
-    add_block "**Apple system app** (\`$BUNDLE_ID\`). This skill refuses to uninstall Apple-signed system software. Removing it can break the OS and most of it is on the sealed system volume anyway."
+    add_block "**这是 Apple 系统应用**（\`$BUNDLE_ID\`）。本工具拒绝卸载 Apple 签名的系统软件——删除可能导致系统异常，而且大部分位于只读的系统卷上，本来也删不掉。"
     ;;
 esac
 case "$APP_PATH" in
   /System/*)
-    add_block "Located on the **sealed system volume** (\`$APP_PATH\`). Not removable, even with sudo."
+    add_block "位于**只读系统卷**上（\`$APP_PATH\`），即使用 sudo 也无法删除。"
     ;;
 esac
 
 # 3b. Setapp-managed apps must go through Setapp.
 case "$APP_PATH" in
   */Applications/Setapp/*)
-    add_block "**Setapp-managed app**. Uninstall it from the Setapp client instead — deleting the bundle directly leaves Setapp's database inconsistent and Setapp will silently reinstall it."
+    add_block "**这是 Setapp 托管的应用**。请在 Setapp 客户端里卸载——直接删除会让 Setapp 的数据库状态不一致，而且它会悄悄把应用装回来。"
     ;;
 esac
 
@@ -195,24 +196,24 @@ if command -v brew > /dev/null 2>&1; then
   fi
 fi
 if [ -n "$BREW_CASK" ]; then
-  INSTALL_SOURCE="Homebrew cask (\`$BREW_CASK\`)"
-  add_warn "**Installed via Homebrew cask** (\`$BREW_CASK\`). Prefer \`brew uninstall --zap --cask $BREW_CASK\` — it removes the app *and* the leftovers the cask author declared, and keeps brew's state consistent. Deleting the bundle by hand leaves brew thinking it is still installed."
+  INSTALL_SOURCE="Homebrew cask（\`$BREW_CASK\`）"
+  add_warn "**通过 Homebrew cask 安装**（\`$BREW_CASK\`）。建议改用 \`brew uninstall --zap --cask $BREW_CASK\`——它会同时清掉 cask 作者声明的残留，并保持 brew 状态一致。手动删除会让 brew 仍以为该应用还装着。"
 fi
 
 # 3d. Mac App Store receipt. Wrapped iOS apps keep theirs inside the wrapper.
 if [ $APP_FOUND -eq 0 ] &&
    { [ -f "$APP_PATH/Contents/_MASReceipt/receipt" ] || [ -f "$APP_PATH/WrappedBundle/_MASReceipt/receipt" ]; }; then
   INSTALL_SOURCE="Mac App Store"
-  add_warn "**Mac App Store app.** Redownloadable from the App Store at any time, but any in-app purchase state stored in the leftovers below will be gone."
+  add_warn "**来自 Mac App Store**，随时可以重新下载。但下面这些残留里如果存有内购/授权状态，删除后就没了。"
 fi
 
 # 3e. iOS/iPadOS app running on Apple Silicon.
 if [ $APP_FOUND -eq 0 ] && [ -d "$APP_PATH/Wrapper" ]; then
-  INSTALL_SOURCE="iOS/iPadOS app (Designed for iPad)"
-  add_warn "**This is an iOS/iPadOS app** running on Apple Silicon. Its data lives in \`~/Library/Containers/$BUNDLE_ID\` rather than the usual macOS locations."
+  INSTALL_SOURCE="iOS/iPadOS 应用（Designed for iPad）"
+  add_warn "**这是跑在 Apple Silicon 上的 iOS/iPadOS 应用**。它的数据存放在 \`~/Library/Containers/$BUNDLE_ID\`，而不是 macOS 应用的常规位置。"
 fi
-if [ "$INSTALL_SOURCE" = "Unknown" ] && [ $APP_FOUND -eq 0 ]; then
-  INSTALL_SOURCE="Direct download / installer"
+if [ "$INSTALL_SOURCE" = "未知" ] && [ $APP_FOUND -eq 0 ]; then
+  INSTALL_SOURCE="直接下载 / 安装包"
 fi
 
 # 3e. Running processes — deleting a running app leaves it able to rewrite prefs on quit.
@@ -253,7 +254,7 @@ if [ -n "$BUNDLE_ID" ]; then
   done < "$CENSUS_FILE"
 fi
 if [ -n "$DUPLICATE_INSTALL" ]; then
-  add_warn "**Another copy of \`$BUNDLE_ID\` is still installed** elsewhere on this machine. Its preferences and data are shared with the copy you are removing, so nothing is listed as safe — review each item by hand."
+  add_warn "**本机还装着另一份 \`$BUNDLE_ID\`**。它和你要删的这份共用同一批配置和数据，因此不会有任何项被标记为「可安全删除」——请逐条人工确认。"
 fi
 
 # Returns the MOST SPECIFIC bundle id that owns this basename, considering every
@@ -332,17 +333,17 @@ consider() {
   # Shared-component check (the important one).
   owner="$(owner_of "$base")"
   if [ -n "$owner" ] && [ "$owner" != "$BUNDLE_ID" ]; then
-    printf 'SHARED\t%s\tBelongs to still-installed app `%s` — deleting this breaks that app\n' "$p" "$owner" >> "$CANDIDATES_FILE"
+    printf 'SHARED\t%s\t属于仍安装着的 `%s`，删除会影响该应用\n' "$p" "$owner" >> "$CANDIDATES_FILE"
     return 0
   fi
 
   # A second copy of the same app is still installed somewhere, so this data is
   # live for that copy too. Demote rather than claim it is safe.
   if [ -n "$DUPLICATE_INSTALL" ]; then
-    printf 'REVIEW\t%s\tBundle-id match, but another copy of this app is still installed\n' "$p" >> "$CANDIDATES_FILE"
+    printf 'REVIEW\t%s\tBundle ID 匹配，但本机还装着该应用的另一份\n' "$p" >> "$CANDIDATES_FILE"
     return 0
   fi
-  printf 'SAFE\t%s\tExact bundle-id match\n' "$p" >> "$CANDIDATES_FILE"
+  printf 'SAFE\t%s\tBundle ID 精确匹配\n' "$p" >> "$CANDIDATES_FILE"
 }
 
 # 5a. Exact bundle-id lookups across the standard leftover locations.
@@ -426,7 +427,7 @@ if [ -n "$BUNDLE_ID" ]; then
       base="$(basename "$hit")"
       owner="$(owner_of "$base")"
       if [ -n "$owner" ] && [ "$owner" != "$BUNDLE_ID" ]; then
-        add_sudo "- 🚫 \`$hit\` — **belongs to \`$owner\`, do not remove**"
+        add_sudo "- 🚫 \`$hit\` — **属于 \`$owner\`，请勿删除**"
       else
         add_sudo "- \`$hit\` ($(path_size "$hit"))"
       fi
@@ -485,100 +486,100 @@ emit_tier() {
     found=1
     printf -- '- `%s` — %s _(%s)_\n' "$p" "$reason" "$(path_size "$p")"
   done < "$CANDIDATES_FILE"
-  [ $found -eq 0 ] && printf -- '_none_\n'
+  [ $found -eq 0 ] && printf -- '_无_\n'
 }
 
 {
-  printf '# Uninstall report — %s\n\n' "$APP_NAME"
-  printf '_Generated %s by mac-app-uninstall (read-only scan)._\n\n' "$timestamp"
+  printf '# 卸载报告 — %s\n\n' "$APP_NAME"
+  printf '生成时间：%s（只读扫描，未改动任何文件）\n\n' "$(date '+%Y-%m-%d %H:%M:%S')"
 
-  printf '## Identity\n\n'
-  printf '| Field | Value |\n|---|---|\n'
+  printf '## 应用信息\n\n'
+  printf '| 项目 | 值 |\n|---|---|\n'
   if [ $APP_FOUND -eq 0 ]; then
-    printf '| Bundle | `%s` |\n' "$APP_PATH"
-    printf '| Size | %s |\n' "$APP_SIZE"
+    printf '| 应用路径 | `%s` |\n' "$APP_PATH"
+    printf '| 应用本体大小 | %s |\n' "$APP_SIZE"
   else
-    printf '| Bundle | **not installed** — leftover-only cleanup |\n'
+    printf '| 应用路径 | **未安装** — 仅清理残留 |\n'
   fi
-  printf '| Bundle ID | `%s` |\n' "${BUNDLE_ID:-unknown}"
-  [ -n "$APP_VERSION" ] && printf '| Version | %s |\n' "$APP_VERSION"
-  printf '| Install source | %s |\n' "$INSTALL_SOURCE"
-  printf '| Installed apps censused | %s |\n' "$census_count"
+  printf '| Bundle ID | `%s` |\n' "${BUNDLE_ID:-未知}"
+  [ -n "$APP_VERSION" ] && printf '| 版本 | %s |\n' "$APP_VERSION"
+  printf '| 安装方式 | %s |\n' "$INSTALL_SOURCE"
+  printf '| 已扫描应用总数 | %s |\n' "$census_count"
   printf '\n'
 
   if [ -n "$GATE_BLOCK" ]; then
-    printf '## 🛑 Blocked\n\n'
+    printf '## 🛑 已阻止\n\n'
     printf '%s\n' "$GATE_BLOCK"
-    printf 'No manifest was written. Nothing can be removed through this skill.\n\n'
+    printf '未生成删除清单，本工具不会删除该应用的任何内容。\n\n'
   fi
 
   if [ -n "$GATE_WARN" ]; then
-    printf '## ⚠️ Before you proceed\n\n'
+    printf '## ⚠️ 操作前请注意\n\n'
     printf '%s\n' "$GATE_WARN"
   fi
 
   if [ -n "$RUNNING_PIDS" ]; then
-    printf '## 🏃 Currently running\n\n'
-    printf 'PIDs:'
+    printf '## 🏃 应用正在运行\n\n'
+    printf '进程 PID：'
     for pid in $RUNNING_PIDS; do printf ' `%s`' "$pid"; done
-    printf '\n\n**Quit the app before uninstalling.** A running app rewrites its preferences on exit, so deleting them first accomplishes nothing.\n\n'
+    printf '\n\n**请先退出该应用再卸载。** 应用退出时会重写自己的偏好设置，先删了也会被它写回来。\n\n'
   fi
 
   if [ -n "$GATE_BLOCK" ]; then
     # Never print "safe to remove" under a blocked target — the heading alone
     # invites someone to go delete these by hand.
-    printf '## 📋 Leftovers found (%s) — informational only\n\n' "$n_safe"
-    printf 'This target is **blocked** (see above). Nothing here may be removed through this skill.\n\n'
+    printf '## 📋 发现的残留（%s）— 仅供参考\n\n' "$n_safe"
+    printf '该应用**已被阻止卸载**（原因见上），这里列出的内容不会被本工具删除。\n\n'
   else
-    printf '## ✅ Safe to remove (%s)\n\n' "$n_safe"
-    printf 'Exact bundle-id matches, not claimed by any other installed app.\n\n'
+    printf '## ✅ 可安全删除（%s）\n\n' "$n_safe"
+    printf 'Bundle ID 精确匹配，且没有其他已安装应用占用这些文件。\n\n'
   fi
   emit_tier SAFE
   printf '\n'
 
-  printf '## ⚠️ Needs your review (%s)\n\n' "$n_review"
-  printf 'Bundle-id matches that could not be called safe — another copy of this app is\n'
-  printf 'still installed, so the data is live for that copy too.\n\n'
+  printf '## ⚠️ 需要你确认（%s）\n\n' "$n_review"
+  printf 'Bundle ID 匹配，但不能算安全：本机还装着这个应用的另一份，\n'
+  printf '这些数据对那一份来说仍在使用中。\n\n'
   emit_tier REVIEW
   printf '\n' 
 
-  printf '## 🚫 Shared — do not remove (%s)\n\n' "$n_shared"
-  printf 'Another app that is **still installed** also owns these paths.\n\n'
+  printf '## 🚫 共享文件 — 请勿删除（%s）\n\n' "$n_shared"
+  printf '这些路径属于**仍然安装着的其他应用**，删除会导致那些应用出问题。\n\n'
   emit_tier SHARED
   printf '\n'
 
   if [ -n "$SUDO_FINDINGS" ] || [ -n "$LAUNCHD_JOBS" ] || [ -n "$SYSEXTS" ] || [ -n "$PKG_RECEIPTS" ]; then
-    printf '## 🔐 System-level (requires sudo — run these yourself)\n\n'
-    printf 'This skill never runs sudo. Review each line, then run it manually if you agree.\n\n'
+    printf '## 🔐 系统级残留（需要 sudo — 请你自己执行）\n\n'
+    printf '本工具从不执行 sudo。请逐条确认后，自行在终端执行。\n\n'
     if [ -n "$LAUNCHD_JOBS" ]; then
-      printf '**Loaded launchd jobs** — bootout these *before* deleting their plists:\n\n'
+      printf '**已加载的 launchd 任务** —— 必须**先** bootout 再删除对应的 plist：\n\n'
       printf '%s\n' "$LAUNCHD_JOBS"
     fi
     if [ -n "$SUDO_FINDINGS" ]; then
-      printf '**System files:**\n\n'
+      printf '**系统文件：**\n\n'
       printf '%s\n' "$SUDO_FINDINGS"
     fi
     if [ -n "$SYSEXTS" ]; then
-      printf '**System extensions** (must be deactivated by the app itself, or in System Settings → General → Login Items & Extensions):\n\n```\n%s\n```\n\n' "$SYSEXTS"
+      printf '**系统扩展**（只能由应用自己停用，或在「系统设置 → 通用 → 登录项与扩展」里移除，`rm` 删不掉）：\n\n```\n%s\n```\n\n' "$SYSEXTS"
     fi
     if [ -n "$PKG_RECEIPTS" ]; then
-      printf '**Installer receipts** (`sudo pkgutil --forget <id>`):\n\n```\n%s\n```\n\n' "$PKG_RECEIPTS"
+      printf '**安装收据**（`sudo pkgutil --forget <id>`）：\n\n```\n%s\n```\n\n' "$PKG_RECEIPTS"
     fi
   fi
 
   if [ -s "$SKIPPED_FILE" ]; then
-    printf '## ⏭️ Skipped (unrepresentable paths)\n\n'
-    printf 'These contain tabs or newlines and cannot go in the manifest. Handle them by hand:\n\n'
+    printf '## ⏭️ 已跳过（路径含特殊字符）\n\n'
+    printf '这些路径含制表符或换行，无法写入清单文件，需要你手动处理：\n\n'
     while IFS= read -r p; do printf -- '- `%s`\n' "$p"; done < "$SKIPPED_FILE"
     printf '\n'
   fi
 
-  printf '## Next step\n\n'
+  printf '## 下一步\n\n'
   if [ -n "$GATE_BLOCK" ]; then
-    printf 'Blocked — see above.\n'
+    printf '已阻止，原因见上。\n'
   else
-    printf 'Manifest: `%s`\n\n' "$manifest_file"
-    printf 'To remove the ✅ tier (moves to Trash, recoverable):\n\n'
+    printf '删除清单：`%s`\n\n' "$manifest_file"
+    printf '删除 ✅ 档的内容（移入废纸篓，可随时还原）：\n\n'
     printf '```bash\nbash uninstall.sh --manifest "%s" --tier safe\n```\n' "$manifest_file"
   fi
 } | tee "$report_file"
@@ -593,13 +594,14 @@ if [ -z "$GATE_BLOCK" ]; then
     printf '# bundle_id\t%s\n' "${BUNDLE_ID:-unknown}"
     printf '# generated\t%s\n' "$timestamp"
     if [ $APP_FOUND -eq 0 ]; then
-      printf 'BUNDLE\t%s\tThe application bundle itself\n' "$APP_PATH"
+      printf 'BUNDLE\t%s\t应用程序本体\n' "$APP_PATH"
     fi
     cat "$CANDIDATES_FILE"
   } > "$manifest_file"
-  printf '\n[manifest] %s\n' "$manifest_file" >&2
+  printf '[删除清单] %s\n' "$manifest_file"
 fi
 
-printf '[report] %s\n' "$report_file" >&2
+printf '[已保存] %s\n' "$report_file"
+mau_open_file "$report_file"
 
 exit 0

@@ -12,52 +12,51 @@ EXECUTE=0
 
 usage() {
   cat >&2 <<'EOF'
-Usage: uninstall.sh --manifest <file> [--tier safe|review|bundle|all] [--execute]
+用法: uninstall.sh --manifest <清单文件> [--tier safe|review|bundle|all] [--execute]
 
-  --manifest <file>  Manifest produced by scan.sh (required)
-  --tier <t>         Which tier to act on (default: safe)
-                       safe    exact bundle-id matches, unclaimed by other apps
-                       review  name-only matches — inspect them first
-                       bundle  the .app itself
+  --manifest <文件>  scan.sh 生成的删除清单（必填）
+  --tier <档位>      处理哪一档（默认 safe）
+                       safe    Bundle ID 精确匹配、无其他应用占用
+                       review  需人工确认的项
+                       bundle  应用程序本体（.app）
                        all     safe + review + bundle
-  --execute          Actually move to Trash. Without it, this is a dry run.
+  --execute          真正执行（移入废纸篓）。不加则只做预演。
 
-Everything goes to the Trash and stays recoverable. There is no permanent-delete
-option by design — empty the Trash yourself once you are satisfied.
+所有删除内容一律移入废纸篓，可随时还原。本工具**没有**永久删除选项，
+这是有意设计——确认无误后由你自己清空废纸篓。
 
-The SHARED tier is never actionable: those paths belong to apps that are still
-installed.
+🚫 共享档永远不会被处理：那些文件属于仍然安装着的其他应用。
 EOF
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --manifest)
-      [ $# -ge 2 ] || { echo "ERROR: --manifest needs a value" >&2; exit 2; }
+      [ $# -ge 2 ] || { echo "错误: --manifest 需要一个值" >&2; exit 2; }
       MANIFEST="$2"; shift 2 ;;
     --tier)
-      [ $# -ge 2 ] || { echo "ERROR: --tier needs a value" >&2; exit 2; }
+      [ $# -ge 2 ] || { echo "错误: --tier 需要一个值" >&2; exit 2; }
       TIER="$2"; shift 2 ;;
     --execute) EXECUTE=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) echo "ERROR: unknown argument '$1'" >&2; usage; exit 2 ;;
+    *) echo "错误: 未知参数 '$1'" >&2; usage; exit 2 ;;
   esac
 done
 
-[ -n "$MANIFEST" ] || { echo "ERROR: --manifest is required" >&2; usage; exit 2; }
-[ -f "$MANIFEST" ] || { echo "ERROR: manifest not found: $MANIFEST" >&2; exit 1; }
+[ -n "$MANIFEST" ] || { echo "错误: 必须指定 --manifest" >&2; usage; exit 2; }
+[ -f "$MANIFEST" ] || { echo "错误: 找不到清单文件: $MANIFEST" >&2; exit 1; }
 
 case "$TIER" in
   safe|review|bundle|all) ;;
   shared)
-    echo "ERROR: the SHARED tier is never removable — those paths belong to apps that are still installed." >&2
+    echo "错误: 共享档永远不可删除——那些文件属于仍然安装着的其他应用。" >&2
     exit 2 ;;
-  *) echo "ERROR: invalid --tier '$TIER'" >&2; usage; exit 2 ;;
+  *) echo "错误: --tier 取值无效 '$TIER'" >&2; usage; exit 2 ;;
 esac
 
 command -v /usr/bin/trash > /dev/null 2>&1 || {
-  echo "ERROR: /usr/bin/trash not found. It ships with macOS 14+; on older systems" >&2
-  echo "       move the listed paths to the Trash manually via Finder." >&2
+  echo "错误: 找不到 /usr/bin/trash（macOS 14+ 自带）。" >&2
+  echo "      在更老的系统上，请在访达里手动把这些路径拖进废纸篓。" >&2
   exit 1
 }
 
@@ -201,53 +200,53 @@ if [ -n "$BUNDLE_ID" ] && [ "$BUNDLE_ID" != "unknown" ]; then
   RUNNING="$(pgrep -f "$(escape_ere "$BUNDLE_ID")" 2>/dev/null | grep -v "^$$\$" | tr '\n' ' ' || true)"
 fi
 
-echo "# Uninstall — ${APP_LABEL:-unknown app}"
+echo "# 卸载 — ${APP_LABEL:-未知应用}"
 echo
-echo "Manifest : $MANIFEST"
-echo "Tier     : $TIER"
-echo "Mode     : $([ $EXECUTE -eq 1 ] && echo 'EXECUTE (moves to Trash)' || echo 'DRY RUN (nothing is touched)')"
+echo "清单文件 : $MANIFEST"
+echo "处理档位 : $TIER"
+echo "运行模式 : $([ $EXECUTE -eq 1 ] && echo '执行（移入废纸篓）' || echo '预演（不改动任何文件）')"
 echo
 
 if [ -s "$REJECTED_FILE" ]; then
-  echo "## Refused — outside the allowed roots"
+  echo "## 已拒绝 — 超出允许范围"
   echo
-  echo "These are not under ~/Library/<dir>/, /Applications, or ~/Applications."
-  echo "A manifest should never contain them; if this is unexpected, re-run scan.sh."
+  echo "这些路径不在 ~/Library/<子目录>/、/Applications 或 ~/Applications 之下。"
+  echo "正常的清单不应包含它们；如果意外出现，请重新运行 scan.sh。"
   echo
   while IFS=$'\t' read -r t p; do echo "  [$t] $p"; done < "$REJECTED_FILE"
   echo
 fi
 
 if [ -s "$PROTECTED_FILE" ]; then
-  echo "## 🛑 Refused — protected (Apple / Setapp / system)"
+  echo "## 🛑 已拒绝 — 受保护（Apple / Setapp / 系统）"
   echo
-  echo "These are protected regardless of what the manifest claims. If a manifest"
-  echo "produced by scan.sh contains these, it has been edited or corrupted."
+  echo "无论清单里怎么写，这些内容都受保护、不会被删除。"
+  echo "如果 scan.sh 生成的清单里出现了它们，说明文件被改过或损坏了。"
   echo
   while IFS=$'\t' read -r t p; do echo "  [$t] $p"; done < "$PROTECTED_FILE"
   echo
 fi
 
 if [ "$n_shared_skipped" -gt 0 ]; then
-  echo "## Held back — shared with still-installed apps ($n_shared_skipped)"
+  echo "## 已保留 — 与仍安装着的应用共享（$n_shared_skipped 项）"
   echo
-  echo "Listed in the scan report under 🚫. These are never removable here."
+  echo "即扫描报告里 🚫 档的内容，本工具永远不会删除它们。"
   echo
 fi
 
 if [ -s "$MISSING_FILE" ]; then
-  echo "## Already gone (skipped)"
+  echo "## 已不存在（跳过）"
   echo
   while IFS= read -r p; do echo "  $p"; done < "$MISSING_FILE"
   echo
 fi
 
 if [ "$n_targets" -eq 0 ]; then
-  echo "Nothing to do for tier '$TIER'."
+  echo "档位 '$TIER' 没有需要处理的内容。"
   exit 0
 fi
 
-echo "## Targets ($n_targets)"
+echo "## 将要删除（$n_targets 项）"
 echo
 total_kb=0
 while IFS=$'\t' read -r tier path; do
@@ -257,22 +256,22 @@ while IFS=$'\t' read -r tier path; do
     "$(awk -v k="${kb:-0}" 'BEGIN{if(k<1024)printf "%dKB",k; else if(k<1048576)printf "%.1fMB",k/1024; else printf "%.2fGB",k/1048576}')"
 done < "$TARGETS_FILE"
 echo
-awk -v k="$total_kb" 'BEGIN{printf "Total: %.1f MB\n", k/1024}'
+awk -v k="$total_kb" 'BEGIN{printf "合计: %.1f MB\n", k/1024}'
 echo
 
 if [ -n "$RUNNING" ]; then
-  echo "## ⚠️  Still running: PIDs $RUNNING"
+  echo "## ⚠️  应用仍在运行，PID: $RUNNING"
   echo
-  echo "Quit the app first — it rewrites its preferences on exit."
+  echo "请先退出该应用——它退出时会重写偏好设置。"
   echo
   if [ $EXECUTE -eq 1 ]; then
-    echo "Refusing to execute while the app is running."
+    echo "应用运行期间拒绝执行。"
     exit 1
   fi
 fi
 
 if [ $EXECUTE -eq 0 ]; then
-  echo "Dry run only. Re-run with --execute to move these to the Trash."
+  echo "以上仅为预演。确认无误后加 --execute 才会真正移入废纸篓。"
   exit 0
 fi
 
@@ -307,18 +306,18 @@ while IFS=$'\t' read -r tier path; do
     printf 'ok\t%s\n' "$path" >> "$OUTCOMES_FILE"
   else
     fail=$((fail + 1))
-    printf '  ✘ %s (trash failed — check permissions or Full Disk Access)\n' "$path" >&2
+    printf '  ✘ %s（移入废纸篓失败——检查权限或「完全磁盘访问」）\n' "$path" >&2
     printf 'fail\t%s\n' "$path" >> "$OUTCOMES_FILE"
   fi
 done < "$TARGETS_FILE"
 
 echo
-echo "Moved to Trash: $ok    Failed: $fail"
+echo "已移入废纸篓: $ok    失败: $fail"
 
 # ===== Verify =====
 
 echo
-echo "## Verification"
+echo "## 验证结果"
 echo
 
 verify_fail=0
@@ -327,12 +326,12 @@ verify_fail=0
 still=0
 while IFS=$'\t' read -r tier path; do
   if [ -e "$path" ] || [ -L "$path" ]; then
-    printf '  ✘ still in place: %s\n' "$path"
+    printf '  ✘ 仍然存在: %s\n' "$path"
     still=$((still + 1))
   fi
 done < "$TARGETS_FILE"
 if [ "$still" -eq 0 ]; then
-  printf '  ✔ all %s target(s) gone from their original locations\n' "$ok"
+  printf '  ✔ %s 项均已从原位置移走\n' "$ok"
 else
   verify_fail=$((verify_fail + still))
 fi
@@ -344,12 +343,12 @@ n_anc="$(wc -l < "$ANCESTORS_FILE" | tr -d ' ')"
 while IFS= read -r d; do
   [ -n "$d" ] || continue
   if [ ! -d "$d" ]; then
-    printf '  ✘✘ MISSING DIRECTORY: %s\n' "$d" >&2
+    printf '  ✘✘ 目录丢失: %s\n' "$d" >&2
     missing_anc=$((missing_anc + 1))
   fi
 done < "$ANCESTORS_FILE"
 if [ "$missing_anc" -eq 0 ]; then
-  printf '  ✔ all %s parent and system directories intact\n' "$n_anc"
+  printf '  ✔ %s 个上级目录及系统目录完好无损\n' "$n_anc"
 else
   verify_fail=$((verify_fail + missing_anc))
 fi
@@ -372,11 +371,11 @@ while IFS=$'\t' read -r tier path; do
 done < "$TARGETS_FILE"
 
 if [ "$inconclusive" -eq 0 ]; then
-  printf '  ✔ all %s item(s) confirmed in ~/.Trash — recoverable\n' "$found"
+  printf '  ✔ %s 项已确认在废纸篓中，可还原\n' "$found"
 else
-  printf '  ✔ %s item(s) confirmed in ~/.Trash\n' "$found"
-  printf '  ⚠ %s not found there under the same name. Finder renames on collision,\n' "$inconclusive"
-  printf '    so this is inconclusive rather than lost — check the Trash in Finder.\n'
+  printf '  ✔ %s 项已确认在废纸篓中\n' "$found"
+  printf '  ⚠ 另有 %s 项未按原名找到。废纸篓里重名时访达会自动改名，\n' "$inconclusive"
+  printf '    所以这只是无法确认，并不代表丢失——请在访达的废纸篓里核对。\n'
 fi
 
 # ===== Archive =====
@@ -385,27 +384,27 @@ fi
 # capturing stdout — a tee'd process substitution can be cut off at exit.
 RESULT_FILE="$(dirname "$MANIFEST")/result.md"
 {
-  printf '# Uninstall result — %s\n\n' "${APP_LABEL:-unknown app}"
+  printf '# 卸载结果 — %s\n\n' "${APP_LABEL:-未知应用}"
   printf '| | |\n|---|---|\n'
-  printf '| When | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S')"
-  printf '| Tier | `%s` |\n' "$TIER"
-  printf '| Manifest | `%s` |\n' "$MANIFEST"
-  printf '| Moved to Trash | %s |\n' "$ok"
-  printf '| Failed | %s |\n\n' "$fail"
+  printf '| 时间 | %s |\n' "$(date '+%Y-%m-%d %H:%M:%S')"
+  printf '| 处理档位 | `%s` |\n' "$TIER"
+  printf '| 清单文件 | `%s` |\n' "$MANIFEST"
+  printf '| 已移入废纸篓 | %s |\n' "$ok"
+  printf '| 失败 | %s |\n\n' "$fail"
 
-  printf '## Moved to Trash\n\n'
+  printf '## 已移入废纸篓\n\n'
   if [ -s "$OUTCOMES_FILE" ]; then
     while IFS=$'\t' read -r st pth; do
       [ "$st" = "ok" ] || continue
       printf -- '- `%s`\n' "$pth"
     done < "$OUTCOMES_FILE"
   else
-    printf '_none_\n'
+    printf '_无_\n'
   fi
   printf '\n'
 
   if [ "$fail" -gt 0 ]; then
-    printf '## Failed\n\n'
+    printf '## 失败的条目\n\n'
     while IFS=$'\t' read -r st pth; do
       [ "$st" = "fail" ] || continue
       printf -- '- `%s`\n' "$pth"
@@ -413,31 +412,31 @@ RESULT_FILE="$(dirname "$MANIFEST")/result.md"
     printf '\n'
   fi
 
-  printf '## Verification\n\n'
-  printf -- '- Targets gone from original locations: %s\n' \
-    "$([ "$still" -eq 0 ] && echo "yes (all $ok)" || echo "NO — $still still present")"
-  printf -- '- Parent and system directories intact: %s\n' \
-    "$([ "$missing_anc" -eq 0 ] && echo "yes (all $n_anc checked)" || echo "NO — $missing_anc missing")"
-  printf -- '- Confirmed in ~/.Trash: %s of %s\n' "$found" "$ok"
-  [ "$inconclusive" -gt 0 ] && printf -- '  (%s not found under the same name; Finder renames on collision)\n' "$inconclusive"
+  printf '## 验证结果\n\n'
+  printf -- '- 目标已从原位置移走：%s\n' \
+    "$([ "$still" -eq 0 ] && echo "是（全部 $ok 项）" || echo "否 —— 仍有 $still 项存在")"
+  printf -- '- 上级目录及系统目录完好：%s\n' \
+    "$([ "$missing_anc" -eq 0 ] && echo "是（已检查 $n_anc 个）" || echo "否 —— 丢失 $missing_anc 个")"
+  printf -- '- 已确认在废纸篓中：%s / %s\n' "$found" "$ok"
+  [ "$inconclusive" -gt 0 ] && printf -- '  （另有 %s 项未按原名找到；废纸篓重名时访达会自动改名）\n' "$inconclusive"
   printf '\n'
 
   if [ "$verify_fail" -gt 0 ]; then
-    printf '**VERIFICATION FAILED — %s problem(s).**\n\n' "$verify_fail"
+    printf '**验证未通过 —— 有 %s 处异常。**\n\n' "$verify_fail"
   fi
-  printf '_Everything listed above is recoverable from the Trash until it is emptied._\n'
+  printf '_以上内容在废纸篓被清空之前都可以还原。_\n'
 } > "$RESULT_FILE"
 
-printf '\n[saved] %s\n' "$RESULT_FILE" >&2
+printf '\n[已保存] %s\n' "$RESULT_FILE"
 
 echo
 if [ "$verify_fail" -gt 0 ]; then
-  echo "❌ VERIFICATION FAILED — $verify_fail problem(s) above. Stop and inspect." >&2
+  echo "❌ 验证未通过——上面有 $verify_fail 处异常，请停下来检查。" >&2
   exit 1
 fi
 if [ "$fail" -gt 0 ]; then
-  echo "Some items failed to move. Do not retry blindly — inspect the errors above." >&2
+  echo "有条目移动失败。不要盲目重试，先看上面的报错。" >&2
   exit 1
 fi
-echo "✅ Verified. Everything above is recoverable from the Trash until you empty it."
+echo "✅ 验证通过。以上内容在你清空废纸篓之前都可以还原。"
 exit 0
